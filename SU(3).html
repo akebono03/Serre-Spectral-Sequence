@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>S^3 -> SU(3) -> S^5 のスペクトル系列 (Z_3係数) + d_4</title>
+  <!-- MathJax 読み込み (数式表示用) -->
+  <script type="text/javascript" async
+    src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
+  </script>
+
+  <style>
+    /* レイアウト：グリッドと座標表示用 */
+    .grid-container {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 40px; /* 下余白 */
+    }
+    .y-coordinates {
+      display: grid;
+      grid-template-rows: repeat(20, 20px);
+      gap: 1px;
+      margin-right: 10px;
+      text-align: right;
+      font-size: 14px;
+      font-weight: bold;
+      width: 30px; /* y 軸ラベル幅 */
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(20, 60px);
+      grid-template-rows: repeat(20, 20px);
+      gap: 1px;
+      border: 1px solid #999;
+      background-color: white;
+      position: relative;
+    }
+    .cell {
+      width: 60px;
+      height: 20px;
+      border: 1px solid #ccc;
+      text-align: center;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .x-coordinates {
+      display: grid;
+      grid-template-columns: repeat(20, 60px);
+      gap: 1px;
+      margin-top: 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    /* SVG（差分矢印） */
+    .arrow {
+      position: absolute;
+      top: 0;
+      left: 30px; /* y座標表示の幅だけずらす */
+      pointer-events: none;
+      z-index: 10;
+      /* 必要に応じてはみ出し可視化 */
+      overflow: visible;
+    }
+
+    /* 補足説明用 */
+    .fibration-info {
+      padding: 15px;
+      border: 1px solid #ccc;
+      background-color: #f9f9f9;
+      width: 80%;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .spectral-table {
+      border-collapse: collapse;
+      margin: 15px auto;
+      width: 60%;
+    }
+    .spectral-table th,
+    .spectral-table td {
+      border: 1px solid #666;
+      padding: 6px 10px;
+      text-align: center;
+    }
+    .spectral-table th {
+      background-color: #ddd;
+    }
+  </style>
+</head>
+<body>
+
+<h2 style="text-align:center;">
+  <br>\(S^3 \to SU(3) \to S^5\), \(\mathbb{Z}_3\)係数
+</h2>
+
+<div class="grid-container">
+  <!-- 縦軸( q )のラベル表示 -->
+  <div class="y-coordinates">
+    <script>
+      // このスクリプト自身の親要素(.y-coordinates)にラベルを追加
+      const yCoordsContainer = document.currentScript.parentNode;
+      for (let y = 19; y >= 0; y--) {
+        const yLabel = document.createElement("div");
+        yLabel.textContent = y;
+        yCoordsContainer.appendChild(yLabel);
+      }
+    </script>
+  </div>
+
+  <div>
+    <!-- スペクトル系列マス目 (20x20) -->
+    <div class="grid">
+      <script>
+        const grid = document.currentScript.parentNode;
+        const rows = 20, cols = 20;
+
+        for (let row = rows - 1; row >= 0; row--) {
+          for (let col = 0; col < cols; col++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+
+            // (p,q) = (0,0): 1
+            if (col === 0 && row === 0) {
+              cell.innerHTML = "\\(1\\)";
+            }
+            // (p,q) = (0,3): x
+            if (col === 0 && row === 3) {
+              cell.innerHTML = "\\(x\\)";
+            }
+            // (p,q) = (5,0): y
+            if (col === 5 && row === 0) {
+              cell.innerHTML = "\\(y\\)";
+            }
+            // (p,q) = (5,3): x \\otimes y
+            if (col === 5 && row === 3) {
+              cell.innerHTML = "\\(x\\otimes y\\)";
+            }
+
+            grid.appendChild(cell);
+          }
+        }
+        // 数式をレンダリング
+        MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
+      </script>
+    </div>
+
+    <!-- 横軸( p )のラベル表示 -->
+    <div class="x-coordinates">
+      <script>
+        const xCoordsContainer = document.currentScript.parentNode;
+        for (let x = 0; x < 20; x++) {
+          const xLabel = document.createElement("div");
+          xLabel.textContent = x;
+          xCoordsContainer.appendChild(xLabel);
+        }
+      </script>
+    </div>
+  </div>
+
+  <!-- 差分矢印用の SVG -->
+  <svg class="arrow" width="1200" height="500" id="mysvg">
+    <defs>
+      <!-- 矢尻定義 (ここでは青色) -->
+      <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="bisque" />
+      </marker>
+    </defs>
+    <script>
+      // DOM 構築後に矢印を描画
+      window.addEventListener('load', () => {
+        const svg = document.getElementById("mysvg");
+        const svgNS = "http://www.w3.org/2000/svg";
+
+        // グリッド関連のパラメータ
+        const cellWidth = 60;
+        const cellHeight = 20;
+        const gap = 1;
+        const border = 2;
+        const rowsTotal = 20;
+
+        // (p,q) のセル中心座標を計算する関数
+        function cellCenter(p, q) {
+          // rowIndex = (19 - q)
+          const rowIndex = (rowsTotal - 1) - q;
+          const x = border + p * (cellWidth + gap) + cellWidth / 2;
+          const y = border + rowIndex * (cellHeight + gap) + cellHeight / 2;
+          return { x, y };
+        }
+
+        // d_4: (0,3) → (4, -1)
+        const start = cellCenter(0, 3);
+        const end   = cellCenter(4, 0); // q=-1 はグリッド外
+        const line = document.createElementNS(svgNS, "line");
+        // 適度に調整するなら + や - を変更
+        line.setAttribute("x1", start.x + 38);
+        line.setAttribute("y1", start.y);
+        line.setAttribute("x2", end.x - 22);
+        line.setAttribute("y2", end.y);
+        line.setAttribute("stroke", "bisque");
+        line.setAttribute("stroke-width", "1");
+        line.setAttribute("marker-end", "url(#arrowhead)");
+        svg.appendChild(line);
+      });
+    </script>
+  </svg>
+</div>
+
+<!-- 補足説明を下に追加 -->
+<div class="fibration-info">
+  <h2>ファイバー束 \(S^3 \to SU(3) \to S^5\) と \(\mathbb{Z}_3\) 係数コホモロジー</h2>
+  <p>
+    ファイバー \(S^3\) のコホモロジー:
+    \[
+      H^*(S^3; \mathbb{Z}_3) \;\cong\; \Lambda(x)
+      \quad (\deg x = 3).
+    \]
+    ベース \(S^5\) のコホモロジー:
+    \[
+      H^*(S^5; \mathbb{Z}_3) \;\cong\; \Lambda(y)
+      \quad (\deg y = 5).
+    \]
+    いずれも次元の都合上、生成元の自乗は消えるため
+    外積代数（\(\Lambda\)-代数）構造となっています。
+  </p>
+  <p>
+    すると Serre スペクトル系列の
+    \[
+      E_2^{p,q}
+      \;\cong\;
+      H^p\bigl(S^5;\,H^q(S^3;\mathbb{Z}_3)\bigr)
+      \;\cong\;
+      H^p(S^5;\mathbb{Z}_3) \;\otimes\; H^q(S^3;\mathbb{Z}_3),
+    \]
+    で非零なのは \((p,q)=(0,0),(0,3),(5,0),(5,3)\) だけになります。
+  </p>
+  <p>
+    ここでは例として、
+    <code>d<sub>4</sub>: (0,3) &rarr; (4,-1)</code>
+    という差分を青矢印で表示しています（実際には存在しない可能性があります）。
+    \((p,q)=(4,-1)\) はグリッド範囲外となるため、SVG 表示領域からはみ出す場合は
+    `height` や `overflow` を調整してください。
+  </p>
+  <table class="spectral-table">
+    <tr><th>q</th><th>p=5</th><th>p=0</th></tr>
+    <tr><td>3</td><td>\(y \otimes x\)</td><td>\(x\)</td></tr>
+    <tr><td>0</td><td>\(y\)</td><td>\(1\)</td></tr>
+  </table>
+  <p style="text-align:center;">
+    (表：\(E_2\) 頁の非自明ブロック)
+  </p>
+</div>
+
+</body>
+</html>

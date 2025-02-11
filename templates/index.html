@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Serre Spectral Sequence of fibration</title>
+  <script type="text/javascript" async
+    src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
+  </script>
+</head>
+<body>
+  <h1>Serre Spectral Sequence of Fibration</h1>
+  <form method="post">
+    <label for="fibration">Fibration:</label>
+    <select name="fibration" id="fibration">
+      {% for fib in fibrations %}
+      <option value="{{ fib['F'] }},{{ fib['E'] }},{{ fib['B'] }}"
+        {% if selected_fibration == fib['F'] + ',' + fib['E'] + ',' + fib['B'] %}selected{% endif %}>
+        {{ fib['F'] }} → {{ fib['E'] }} → {{ fib['B'] }}
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit">Run</button>
+  </form>
+
+  {% if cohomologies %}
+  <h2> \( {{ cohomologies['F'][0] }} \to {{ cohomologies['E'][0] }} \to {{ cohomologies['B'][0] }} \) </h2>
+
+  <h2> \( E_2^{*,*} = H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) \otimes H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['E2'] }} \) </h2>
+
+  <h3> \( H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['F'][2] }} \) </h3>
+  <h3> \( H^*({{ cohomologies['E'][0] }}; {{ cohomologies['E'][1] }}) = {{ cohomologies['E'][2] }} \) </h3>
+  <h3> \( H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) = {{ cohomologies['B'][2] }} \) </h3>
+  {% endif %}
+</body>
+</html>

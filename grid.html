@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スペクトル系列と fibration の説明（\( \mathbb{Z}_3 \) 係数）</title>
+  <!-- MathJax の読み込み -->
+  <script type="text/javascript" async 
+    src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
+  </script>
+  <style>
+    /* グリッド、座標、SVG 用のスタイル */
+    .grid-container {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+    }
+    .y-coordinates {
+      display: grid;
+      grid-template-rows: repeat(20, 20px);
+      gap: 2px;
+      margin-right: 10px;
+      text-align: right;
+      font-size: 14px;
+      font-weight: bold;
+      width: 30px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(20, 60px);
+      grid-template-rows: repeat(20, 20px);
+      gap: 2px;
+      border: 2px solid black;
+      background-color: white;
+      position: relative;
+    }
+    .cell {
+      width: 60px;
+      height: 20px;
+      border: 2px solid black;
+      text-align: center;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .x-coordinates {
+      display: grid;
+      grid-template-columns: repeat(20, 60px);
+      gap: 2px;
+      margin-top: 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    /* SVG（矢印）はグリッドコンテナ内に配置。左端は y 座標の幅分オフセット */
+    .arrow {
+      position: absolute;
+      top: 0;
+      left: 30px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    /* fibration に関する説明を表示する領域 */
+    .fibration-info {
+      margin-top: 40px;
+      padding: 15px;
+      border: 1px solid #ccc;
+      background-color: #f9f9f9;
+      width: 80%;
+      margin-left: auto;
+      margin-right: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .spectral-table {
+      border-collapse: collapse;
+      margin: 15px auto;
+      width: 50%;
+    }
+    .spectral-table th,
+    .spectral-table td {
+      border: 1px solid #666;
+      padding: 6px 10px;
+      text-align: center;
+    }
+    .spectral-table th {
+      background-color: #ddd;
+    }
+  </style>
+</head>
+<body>
+  <!-- グリッドと矢印の図 -->
+  <div class="grid-container">
+    <!-- y 座標表示 -->
+    <div class="y-coordinates">
+      <script>
+        const yCoordsContainer = document.querySelector(".y-coordinates");
+        for (let y = 19; y >= 0; y--) {
+          const yLabel = document.createElement("div");
+          yLabel.textContent = y;
+          yCoordsContainer.appendChild(yLabel);
+        }
+      </script>
+    </div>
+    <div>
+      <!-- グリッド -->
+      <div class="grid">
+        <script>
+          const grid = document.querySelector(".grid");
+          const rows = 20, cols = 20;
+          for (let y = rows - 1; y >= 0; y--) {
+            for (let x = 0; x < cols; x++) {
+              const cell = document.createElement("div");
+              cell.className = "cell";
+              // 列 0 の偶数論理行（下から数える）に： (0,0)→1, (0,2)→a, (0,4)→a^2, …
+              if (x === 0 && y % 2 === 0) {
+                cell.innerHTML = (y === 0) ? "\\( 1 \\)" : "\\( a^{" + (y / 2) + "} \\)";
+              }
+              // 列 3 の偶数論理行に： (3,0)→\(x\otimes 1\), (3,2)→\(x\otimes a\), (3,4)→\(x\otimes a^2\), …
+              if (x === 3 && y % 2 === 0) {
+                cell.innerHTML = (y === 0) ? "\\( x \\)" : "\\( x \\otimes a^{" + (y / 2) + "} \\)";
+              }
+              grid.appendChild(cell);
+            }
+          }
+          MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
+        </script>
+      </div>
+      <!-- x 座標表示 -->
+      <div class="x-coordinates">
+        <script>
+          const xCoordsContainer = document.querySelector(".x-coordinates");
+          for (let x = 0; x < cols; x++) {
+            const xLabel = document.createElement("div");
+            xLabel.textContent = x;
+            xCoordsContainer.appendChild(xLabel);
+          }
+        </script>
+      </div>
+    </div>
+    <!-- SVG（矢印）の配置 -->
+    <svg class="arrow" width="1200" height="500">
+      <defs>
+        <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="blue" />
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <!-- 矢印描画スクリプト（window.onload で実行） -->
+  <script>
+    window.onload = function() {
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.querySelector(".arrow");
+      
+      // セルのパラメータ（単位：px）
+      const cellWidth = 60;   // セル横幅
+      const cellHeight = 20;  // セル縦高さ
+      const gap = 2;          // セル間隙間
+      const border = 2;       // グリッド境界線
+      const rowsTotal = 20;   // 総行数
+      
+      // 論理行（下から数える値 L：0,2,4,…）を物理行（上からの番号）に変換し、セル中心を返す関数
+      function cellCenter(i, logical_y) {
+        const r = (rowsTotal - 1) - logical_y;
+        const x = border + i * (cellWidth + gap) + cellWidth / 2;
+        const y = border + r * (cellHeight + gap) + cellHeight / 2;
+        return { x, y };
+      }
+      
+      // 矢印の端点の計算
+      // 開始点：セル (0, L) の右辺中央 → x = border + cellWidth, y = cellCenter(0, L).y
+      // 終了点：セル (3, L-2) の左辺中央 → x = border + 3*(cellWidth+gap), y = cellCenter(3, L-2).y
+      const startX = border + cellWidth;          // 2 + 60 = 62
+      const normalEndX = border + 3 * (cellWidth + gap);  // 2 + 3*62 = 188
+      // ターゲットセルの左境界を少し超える（左に5px）ので:
+      const endX = normalEndX - 5;  // 188 - 5 = 183
+      
+      // 論理行 L = 2,4,6,...,18 に対して矢印を描画
+      for (let L = 2; L < rowsTotal; L += 2) {
+        const centerStart = cellCenter(0, L);
+        const centerEnd = cellCenter(3, L - 2);
+        const x1 = startX;
+        const y1 = centerStart.y;
+        const x2 = endX;
+        const y2 = centerEnd.y;
+        const line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", x1+6);
+        line.setAttribute("y1", y1);
+        line.setAttribute("x2", x2+20);
+        line.setAttribute("y2", y2);
+        line.setAttribute("stroke", "blue");
+        line.setAttribute("stroke-width", "1");
+        line.setAttribute("marker-end", "url(#arrowhead)");
+        svg.appendChild(line);
+      }
+    };
+  </script>
+
+  <!-- fibration に関する説明（グリッド・矢印図の下に表示） -->
+  <div class="fibration-info">
+    <h2>Fibration \( \Omega S^3 \rightarrow * \rightarrow S^3 \) と \( \mathbb{Z}_3 \) 係数のコホモロジースペクトル系列</h2>
+    <p>
+      ここでは、係数を \( \mathbb{Z}_3 \) としてコホモロジーを考えます。  
+      まず、ループ空間のコホモロジーは  
+      \[
+      H^*(\Omega S^3; \mathbb{Z}_3) \cong \mathbb{Z}_3[a],
+      \]
+      ただし \(\deg a = 2\) です。実際、モジュロの場合は除数冪代数の構造も現れますが、ここでは多項式環と同型と考えます。
+    </p>
+    <p>
+      一方、\(S^3\) の \( \mathbb{Z}_3 \) コホモロジーは  
+      \[
+      H^*(S^3; \mathbb{Z}_3) \cong 
+      \begin{cases}
+      \mathbb{Z}_3 & *=0,3,\\[1mm]
+      0 & \text{その他}
+      \end{cases}
+      \]
+      として、生成元を \(x\)（\(|x| = 3\)）とします。
+    </p>
+    <p>
+      この fibration に対する Serre コホモロジースペクトル系列は、  
+      \[
+      E_2^{p,q} \cong H^p\bigl(S^3; H^q(\Omega S^3; \mathbb{Z}_3)\bigr)
+      \]
+      となり、非自明な項は \(p=0\) と \(p=3\) に現れます。  
+      具体的には、
+      \[
+      E_2^{0,2k} \cong \mathbb{Z}_3\{a^k\},\quad E_2^{3,2k} \cong \mathbb{Z}_3\{x\otimes a^k\}.
+      \]
+    </p>
+    <p>
+      主要な微分は  
+      \[
+      d_3: E_3^{0,2} \to E_3^{3,0},\quad d_3(a)= x,
+      \]
+      乗法性から  
+      \[
+      d_3(a^k)= k\,a^{k-1}\,x.
+      \]
+      mod 3 では \(3 \equiv 0\) となるため、例えば \(d_3(a^3)= 0\) となります。
+    </p>
+    <p>
+      最終的に、全空間が収縮するため、すべての正次クラスが打ち消され、  
+      \(E_\infty^{0,0} \cong \mathbb{Z}_3\) 以外は 0 となります。
+    </p>
+    <!-- 簡易な表形式で E_2 頁の例 -->
+    <table class="spectral-table">
+      <tr>
+        <th>\(q\)</th>
+        <th>\(p=3\)</th>
+        <th>\(p=0\)</th>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>\(x\otimes a^3\)</td>
+        <td>\(a^3\)</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>\(x\otimes a^2\)</td>
+        <td>\(a^2\)</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>\(x\otimes a\)</td>
+        <td>\(a\)</td>
+      </tr>
+      <tr>
+        <td>0</td>
+        <td>\(x\otimes 1\)</td>
+        <td>\(1\)</td>
+      </tr>
+    </table>
+    <p style="text-align:center;">
+      (表：\(E_2\) 頁の一例、\( \mathbb{Z}_3 \) 係数)
+    </p>
+  </div>
+</body>
+</html>
