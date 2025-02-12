@@ -74,7 +74,7 @@
 
 </head>
 <body>
-  <h1>Serre Spectral Sequence of Fibration</h1>
+  <!-- <h1>Serre Spectral Sequence of Fibration</h1> -->
   <form method="post">
     <label for="fibration">Fibration:</label>
     <select name="fibration" id="fibration">
@@ -86,6 +86,20 @@
       {% endfor %}
     </select>
     <button type="submit">Run</button>
+
+    <p>
+    <label for="coefficient">Coefficient Ring:</label>
+    <select name="coefficient" id="coefficient">
+      <option value="0" {% if selected_coefficient == "0" %}selected{% endif %}> Q </option>
+      <option value="1" {% if selected_coefficient == "1" %}selected{% endif %}> Z </option>
+      <option value="2" {% if selected_coefficient == "2" %}selected{% endif %}> Z_2 </option>
+      <option value="3" {% if selected_coefficient == "3" %}selected{% endif %}> Z_3 </option>
+      <option value="5" {% if selected_coefficient == "5" %}selected{% endif %}> Z_5 </option>
+      <option value="7" {% if selected_coefficient == "7" %}selected{% endif %}> Z_7 </option>
+    </select>
+    <button type="submit">Run</button>
+    </p>
+
     <p> \(r\) <input type="number" name="r" value={{r}} required> \( \ \ r = {{r}} \ \ \) 
         <input type="submit" value="Run">
         <input type="submit" value="Kill">
@@ -111,32 +125,21 @@
         <script>
           const grid = document.currentScript.parentNode;
           const rows = 20, cols = 20;
-  
+          let tensorProductGrid = {{ tensor_product_grid | tojson | safe }};
+          
           for (let row = rows - 1; row >= 0; row--) {
             for (let col = 0; col < cols; col++) {
               const cell = document.createElement("div");
               cell.className = "cell";
   
+              // tensor_product_grid のデータをセット
+              if (tensorProductGrid[col] && tensorProductGrid[col][row]) {
+                const terms = tensorProductGrid[col][row];
+                if (terms.length > 0) {
+                  cell.innerHTML = "\\(" + terms.join(", ") + "\\)";
+                }
+              }
 
-// ここを書き換える 
-              // 1 at (0,0)
-              if(col===0 && row===0) cell.innerHTML = "\\(1\\)";
-              // x at (0,3)
-              if(col===0 && row===3) cell.innerHTML = "\\(x\\)";
-              // y at (0,5)
-              if(col===0 && row===5) cell.innerHTML = "\\(y\\)";
-              // xy at (0,8)
-              if(col===0 && row===8) cell.innerHTML = "\\(xy\\)";
-  
-              // e at (6,0)
-              if(col===6 && row===0) cell.innerHTML = "\\(e\\)";
-              // e⊗x at (6,3)
-              if(col===6 && row===3) cell.innerHTML = "\\(e\\otimes x\\)";
-              // e⊗y at (6,5)
-              if(col===6 && row===5) cell.innerHTML = "\\(e\\otimes y\\)";
-              // e⊗xy at (6,8)
-              if(col===6 && row===8) cell.innerHTML = "\\(e\\otimes xy\\)";
-  
 
 
               grid.appendChild(cell);
@@ -146,7 +149,11 @@
           MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
         </script>
       </div>
-  
+
+      
+
+
+      
       <!-- 横軸 (p) ラベル -->
       <div class="x-coordinates">
         <script>
@@ -198,7 +205,7 @@
             const start = cellCenter(pStart, qStart);
             const end   = cellCenter(pStart+6, qStart-5);
             const line = document.createElementNS(svgNS, "line");
-            line.setAttribute("x1", start.x + 30);
+            line.setAttribute("x1", start.x + 39);
             line.setAttribute("y1", start.y);
             line.setAttribute("x2", end.x - 20);
             line.setAttribute("y2", end.y);
@@ -229,9 +236,9 @@
   </div>
 
   {% if cohomologies %}
-  <h2> \( {{ cohomologies['F'][0] }} \to {{ cohomologies['E'][0] }} \to {{ cohomologies['B'][0] }} \) </h2>
+  <h3> \( {{ cohomologies['F'][0] }} \to {{ cohomologies['E'][0] }} \to {{ cohomologies['B'][0] }} \) </h3>
 
-  <h2> \( E_2^{*,*} = H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) \otimes H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['E2'] }} \) </h2>
+  <h3> \( E_2^{*,*} = H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) \otimes H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['E2'] }} \) </h3>
 
   <h3> \( H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['F'][2] }} \) </h3>
   <h3> \( H^*({{ cohomologies['E'][0] }}; {{ cohomologies['E'][1] }}) = {{ cohomologies['E'][2] }} \) </h3>
