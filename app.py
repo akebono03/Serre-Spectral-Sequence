@@ -3,6 +3,9 @@ from flask import Flask, render_template, request
 import sqlite3
 import pandas as pd
 from collections import defaultdict
+import re
+import csv 
+from io import StringIO
 
 app = Flask(__name__)
 
@@ -77,12 +80,57 @@ conn.close()
 
 print("CSVデータをSQLiteにインポートしました。")
 
+# def smart_split(selected_fibration):
+#   # ダブルクォートで囲まれていないカンマで分割する正規表現
+#   return re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', selected_fibration.strip())
 
-def get_cohomology_structure(space):
+# def smart_split(selected_fibration):
+#   f = StringIO(selected_fibration)
+#   reader = csv.reader(f, skipinitialspace=True)
+#   return next(reader)
+
+# def smart_split(selected_fibration):
+#   res=[]
+#   ok=True
+#   tmp=[]
+#   for c in selected_fibration:
+#     if c==',':
+#       if ok:
+#         res.append(''.join(tmp))
+#         tmp=[]
+#       else:
+#         tmp.append(',')
+#     elif c=='{':
+#       tmp.append('{')
+#       ok=False
+#     elif c=='}':
+#       tmp.append('}')
+#       ok=True
+#     else:
+#       tmp.append(c)
+#   res.append(''.join(tmp))
+#   return res
+
+def smart_split(selected_fibration):
+  s=list(selected_fibration)
+  n=len(s)
+  ok=True
+  for i in range(n):
+    if ok and s[i]==',':
+      s[i] = '.'
+    if s[i]=='{':
+      ok=False
+    if s[i]=='}':
+      ok=True
+  s=''.join(s)
+  return s.split('.')
+
+
+def get_cohomology_structure(space, type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  cursor.execute("SELECT deg, generator, nil_exp FROM cohomology WHERE space=?", (space,))
+  cursor.execute("SELECT deg, id, generator, nil_exp FROM cohomology WHERE space=?", (space,))
   results = cursor.fetchall()
   cursor.execute("SELECT deg1, id1, deg2, id2, result FROM product WHERE space=?", (space,))
   prod_res = cursor.fetchall()
@@ -99,7 +147,21 @@ def get_cohomology_structure(space):
   gen_deg=defaultdict(int)
 
   for row in results:
-    deg, generator, nil_exp = int(row["deg"]), row["generator"], int(row["nil_exp"])
+    deg, id, nil_exp = int(row["deg"]), int(row["id"]), int(row["nil_exp"])
+    a,b={"B":("a","b"), "E":("x","y"), "F":("u","v")}[type]
+
+    generator=""
+    if deg%2==1:
+      if id==1:
+        generator=f"{a}_{{{deg}}}"
+      else:
+        generator=f"{a}_{ {{deg}},{{id}} }"
+    else:
+      if id==1:
+        generator=f"{b}_{{{deg}}}"
+      else:
+        generator=f"{b}_{ {{deg}},{{id}} }"
+
     cohomology_dict[deg].append(generator)
     gen_deg[generator]=deg
     
@@ -132,7 +194,7 @@ def get_cohomology_structure(space):
   return result_list
 
 # コホモロジー環を取得する関数
-def get_cohomology_tex(space, coefficient):
+def get_cohomology_tex(space, coefficient, type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -154,20 +216,21 @@ def get_cohomology_tex(space, coefficient):
 
   odd_generators = []
   even_generators = []
+  a,b={"B":("a","b"), "E":("x","y"), "F":("u","v")}[type]
 
   for row in results:
     deg = int(row["deg"])
     id = int(row["id"])
     if deg % 2 == 1:
       if id == 1:
-        odd_generators.append(f"x_{{{deg}}}")
+        odd_generators.append(f"{a}_{{{deg}}}")
       else:
-        odd_generators.append(f"x_{ {{deg}}, {{id}} }")
+        odd_generators.append(f"{a}_{ {{deg}}, {{id}} }")
     else:
       if id == 1:
-        even_generators.append(f"y_{{{deg}}}")
+        even_generators.append(f"{b}_{{{deg}}}")
       else:
-        even_generators.append(f"y_{ {{deg}}, {{id}} }")
+        even_generators.append(f"{b}_{ {{deg}}, {{id}} }")
 
   terms = []
   ideal = []
@@ -205,12 +268,13 @@ def get_fibration_cohomology(fibration,coefficient):
   cursor = conn.cursor()
   cursor.execute("SELECT F, E, B FROM fibration WHERE F=? AND E=? AND B=?", fibration)
   result = cursor.fetchone()
+  conn.commit()
   conn.close()
 
   if result:
-    f_coe, f_cohomology = get_cohomology_tex(result["F"],coefficient)
-    e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient)
-    b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient)
+    f_coe, f_cohomology = get_cohomology_tex(result["F"],coefficient,"F")
+    e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient,"E")
+    b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient,"B")
 
     E2_tex = rf"{b_cohomology} \otimes {f_cohomology}"
 
@@ -258,17 +322,19 @@ def index():
   cohomologies = None
 
   r=request.form.get("r", "2")
+  tensor_product_grid = [[[] for _ in range(20)] for _ in range(20)]
 
   if request.method == "POST":
     selected_fibration = request.form.get("fibration")
     selected_coefficient = request.form.get("coefficient")
-
+    
     if selected_fibration:
-      F, E, B = selected_fibration.strip().split(",")
+      # F, E, B = selected_fibration.strip().split(",")
+      F,E,B = smart_split(selected_fibration)
       cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
-
-      F_gens=get_cohomology_structure(F)
-      B_gens=get_cohomology_structure(B)
+      # print(F,E,B)
+      F_gens=get_cohomology_structure(F,"F")
+      B_gens=get_cohomology_structure(B,"B")
       # print(F_gens)
       # print(B_gens)
 
