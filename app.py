@@ -118,22 +118,22 @@ def smart_split(selected_fibration):
   for i in range(n):
     if ok and s[i]==',':
       s[i] = '.'
-    if s[i]=='{':
+    if s[i]=='{' or s[i]=='(':
       ok=False
-    if s[i]=='}':
+    if s[i]=='}' or s[i]==')':
       ok=True
   s=''.join(s)
   return s.split('.')
 
 
-def get_cohomology_structure(space, type):
+def get_cohomology_structure(space, coefficient, type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  cursor.execute("SELECT deg, id, generator, nil_exp FROM cohomology WHERE space=?", (space,))
+  cursor.execute("SELECT deg, id, generator, nil_exp FROM cohomology WHERE space=? AND coe=?", (space,coefficient,))
   results = cursor.fetchall()
-  cursor.execute("SELECT deg1, id1, deg2, id2, result FROM product WHERE space=?", (space,))
-  prod_res = cursor.fetchall()
+  # cursor.execute("SELECT deg1, id1, deg2, id2, result FROM product WHERE space=? AND coe=?", (space,coefficient,))
+  # prod_res = cursor.fetchall()
   conn.close()
 
   max_deg = 30
@@ -144,6 +144,8 @@ def get_cohomology_structure(space, type):
 
   odd_generators=[]
   even_generators=[]
+  odd_list=[]
+  even_list=[]
   gen_deg=defaultdict(int)
 
   for row in results:
@@ -168,13 +170,17 @@ def get_cohomology_structure(space, type):
     # 偶数次元の生成元のi乗
     if deg % 2 == 0:
       even_generators.append(generator)
+      even_list.append(generator)
       i=2
       while deg*i<=max_deg and i<nil_exp:
         cohomology_dict[deg*i].append(f"{generator}^{i}")
+        gen_deg[f"{generator}^{i}"]=deg*i
         even_generators.append(f"{generator}^{i}")
+        even_list.append(f"{generator}^{i}")
         i+=1
     else:
       odd_generators.append(generator)
+      odd_list.append(generator)
   
   # 生成元の積を追加
   odd_len=len(odd_generators)
@@ -187,10 +193,23 @@ def get_cohomology_structure(space, type):
         new_deg+=gen_deg[odd_generators[j]]
     if len(tmp)>1:
       cohomology_dict[new_deg].append(' '.join(tmp))
+      odd_list.append(' '.join(tmp))
+      gen_deg[' '.join(tmp)]=new_deg
   
+  # oddとevenの積
+  for od in odd_list:
+    od_deg=gen_deg[od]
+    for ev in even_list:
+      ev_deg=gen_deg[ev]
+      cohomology_dict[od_deg+ev_deg].append(' '.join([od,ev]))
+      gen_deg[' '.join([od,ev])]=od_deg+ev_deg
+
   for deg, gens in cohomology_dict.items():
-    result_list[deg] = gens
-  
+    if deg<=max_deg:
+      result_list[deg] = gens
+
+  print(gen_deg)
+
   return result_list
 
 # コホモロジー環を取得する関数
@@ -213,6 +232,9 @@ def get_cohomology_tex(space, coefficient, type):
     coe_tex = r"\mathbb{Z}"
   else:
     coe_tex = rf"\mathbb{{Z}}_{{{coefficient}}}"
+
+  if space == '*':
+    return coe_tex, coe_tex
 
   odd_generators = []
   even_generators = []
@@ -330,11 +352,12 @@ def index():
     
     if selected_fibration:
       # F, E, B = selected_fibration.strip().split(",")
+      print(smart_split(selected_fibration))
       F,E,B = smart_split(selected_fibration)
       cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
       # print(F,E,B)
-      F_gens=get_cohomology_structure(F,"F")
-      B_gens=get_cohomology_structure(B,"B")
+      F_gens=get_cohomology_structure(F,selected_coefficient,"F")
+      B_gens=get_cohomology_structure(B,selected_coefficient,"B")
       # print(F_gens)
       # print(B_gens)
 

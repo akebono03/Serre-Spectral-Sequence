@@ -175,11 +175,11 @@
       <defs>
         <!-- 青色矢尻 -->
         <marker id="arrowhead-blue" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="blue" />
+          <polygon points="0 0, 8 3, 0 6" fill="blue" fill-opacity="0.7" />
         </marker>
         <!-- bisque色矢尻 -->
         <marker id="arrowhead-bisque" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="bisque" />
+          <polygon points="0 0, 8 3, 0 6" fill="bisque" fill-opacity="0.7" />
         </marker>
       </defs>
       <script>
@@ -220,6 +220,8 @@
             line.setAttribute("y2", end.y);
             line.setAttribute("stroke", colorMarker === "blue" ? "blue" : "bisque");
             line.setAttribute("stroke-width", "1.5");
+            // ここで透明度を設定（例: 0.5 で50%透過）
+            line.setAttribute("stroke-opacity", "0.7");
             line.setAttribute("marker-end", `url(#arrowhead-${colorMarker})`);
             svg.appendChild(line);
           }
