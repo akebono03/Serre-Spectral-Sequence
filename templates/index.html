@@ -227,19 +227,7 @@
           // ========== 青色矢印 =============
           // d_6(y)=e => y: (0,5), e: (6,0)
           <!-- drawArrow(0, 5, "blue"); -->
-          // d_6(xy)=e⊗x => xy: (0,8), e⊗x: (6,3)
-          <!-- drawArrow(0, 8, "blue"); -->
   
-          // ========== bisque矢印 (それ以外) ==========
-          // 1: (0,0), x: (0,3), e: (6,0), e⊗x: (6,3), e⊗y: (6,5), e⊗xy: (6,8)
-          // それぞれ同じベクトルで飛ばす
-          <!-- drawArrow(0, 0, "bisque", rValue);  // 1 -> 
-          drawArrow(0, 3, "bisque", rValue);  // x ->
-          drawArrow(6, 0, "bisque", rValue);  // e ->
-          drawArrow(6, 3, "bisque", rValue);  // e⊗x ->
-          drawArrow(6, 5, "bisque", rValue);  // e⊗y ->
-          drawArrow(6, 8, "bisque", rValue);  // e⊗xy -> -->
-          
           // tensor_product_grid が空でないセルを起点として矢印を描画する
           for (let col = 0; col < cols; col++) {
             for (let row = 0; row < rows; row++) {
