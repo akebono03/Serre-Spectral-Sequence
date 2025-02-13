@@ -139,12 +139,10 @@
                   cell.innerHTML = "\\(" + terms.join(", ") + "\\)";
                 }
               }
-
-
-
               grid.appendChild(cell);
             }
           }
+
           // 数式レンダリング
           MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
         </script>
@@ -166,7 +164,12 @@
         </script>
       </div>
     </div>
-  
+
+<!-- tensor_product_grid の JSON データを埋め込む -->
+<script id="tensor-grid-data" type="application/json">
+  {{ tensor_product_grid | tojson | safe }}
+</script>
+    
     <!-- 差分 d_6 の矢印を描画するSVG -->
     <svg class="arrow" width="1200" height="500" id="mysvg">
       <defs>
@@ -188,7 +191,13 @@
           const cellWidth = 60, cellHeight = 20;
           const gap = 1, border = 2;
           const rowsTotal = 20;
-  
+
+          // テンプレート変数 r を JavaScript 側で数値として取得
+          const rValue = parseInt("{{ r }}", 10);          
+
+          // tensor_product_grid の JSON データを取得
+          const tensorProductGrid = JSON.parse(document.getElementById('tensor-grid-data').textContent);
+                    
           // (p,q)->セル中心座標
           function cellCenter(p, q) {
             const rowIndex = (rowsTotal - 1) - q;
@@ -201,9 +210,9 @@
           // start.x→end.x, start.y→end.y を全て同じ増分で
           // 矢印を少し左右にオフセット (x1+30, x2-20) は共通
   
-          function drawArrow(pStart, qStart, colorMarker) {
+          function drawArrow(pStart, qStart, colorMarker, r) {
             const start = cellCenter(pStart, qStart);
-            const end   = cellCenter(pStart+6, qStart-5);
+            const end   = cellCenter(pStart+r, qStart-r+1);
             const line = document.createElementNS(svgNS, "line");
             line.setAttribute("x1", start.x + 39);
             line.setAttribute("y1", start.y);
@@ -217,19 +226,29 @@
   
           // ========== 青色矢印 =============
           // d_6(y)=e => y: (0,5), e: (6,0)
-          drawArrow(0, 5, "blue");
+          <!-- drawArrow(0, 5, "blue"); -->
           // d_6(xy)=e⊗x => xy: (0,8), e⊗x: (6,3)
-          drawArrow(0, 8, "blue");
+          <!-- drawArrow(0, 8, "blue"); -->
   
           // ========== bisque矢印 (それ以外) ==========
           // 1: (0,0), x: (0,3), e: (6,0), e⊗x: (6,3), e⊗y: (6,5), e⊗xy: (6,8)
           // それぞれ同じベクトルで飛ばす
-          drawArrow(0, 0, "bisque");  // 1 -> 
-          drawArrow(0, 3, "bisque");  // x ->
-          drawArrow(6, 0, "bisque");  // e ->
-          drawArrow(6, 3, "bisque");  // e⊗x ->
-          drawArrow(6, 5, "bisque");  // e⊗y ->
-          drawArrow(6, 8, "bisque");  // e⊗xy ->
+          <!-- drawArrow(0, 0, "bisque", rValue);  // 1 -> 
+          drawArrow(0, 3, "bisque", rValue);  // x ->
+          drawArrow(6, 0, "bisque", rValue);  // e ->
+          drawArrow(6, 3, "bisque", rValue);  // e⊗x ->
+          drawArrow(6, 5, "bisque", rValue);  // e⊗y ->
+          drawArrow(6, 8, "bisque", rValue);  // e⊗xy -> -->
+          
+          // tensor_product_grid が空でないセルを起点として矢印を描画する
+          for (let col = 0; col < cols; col++) {
+            for (let row = 0; row < rows; row++) {
+              if (tensorProductGrid[col] && tensorProductGrid[col][row] && tensorProductGrid[col][row].length > 0) {
+                // このセルは空ではないので、矢印の始点とする
+                drawArrow(col, row, "bisque", rValue);
+              }
+            }
+          }
         });
       </script>
     </svg>
