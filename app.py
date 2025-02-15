@@ -39,13 +39,8 @@ CREATE TABLE IF NOT EXISTS fibration (
   E TEXT,
   B TEXT,
   coe INTEGER,
-  x INTEGER,
-  y INTEGER,
-  xid INTEGER,
-  yid INTEGER,
   r INTEGER,
-  imx INTEGER,
-  imy INTEGER
+  kill TEXT
 )
 """)
 df_fibration.to_sql("fibration", conn, if_exists="replace", index=False)
@@ -80,36 +75,8 @@ conn.close()
 
 print("CSVデータをSQLiteにインポートしました。")
 
-# def smart_split(selected_fibration):
-#   # ダブルクォートで囲まれていないカンマで分割する正規表現
-#   return re.split(r',(?=(?:[^"]*"[^"]*")*[^"]*$)', selected_fibration.strip())
+max_deg = 30
 
-# def smart_split(selected_fibration):
-#   f = StringIO(selected_fibration)
-#   reader = csv.reader(f, skipinitialspace=True)
-#   return next(reader)
-
-# def smart_split(selected_fibration):
-#   res=[]
-#   ok=True
-#   tmp=[]
-#   for c in selected_fibration:
-#     if c==',':
-#       if ok:
-#         res.append(''.join(tmp))
-#         tmp=[]
-#       else:
-#         tmp.append(',')
-#     elif c=='{':
-#       tmp.append('{')
-#       ok=False
-#     elif c=='}':
-#       tmp.append('}')
-#       ok=True
-#     else:
-#       tmp.append(c)
-#   res.append(''.join(tmp))
-#   return res
 
 def smart_split(selected_fibration):
   s=list(selected_fibration)
@@ -136,7 +103,6 @@ def get_cohomology_structure(space, coefficient, type):
   # prod_res = cursor.fetchall()
   conn.close()
 
-  max_deg = 30
   result_list = [[] for _ in range(max_deg + 1)]
 
   cohomology_dict = defaultdict(list)
@@ -208,7 +174,7 @@ def get_cohomology_structure(space, coefficient, type):
     if deg<=max_deg:
       result_list[deg] = gens
 
-  print(gen_deg)
+  result_list[0]=['1']
 
   return result_list
 
@@ -269,9 +235,6 @@ def get_cohomology_tex(space, coefficient, type):
   cohomology_tex = r" \otimes ".join(terms) if terms else "0"
   return coe_tex, cohomology_tex
 
-
-
-
 # ファイブレーションのリストを取得
 def get_fibrations():
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
@@ -281,7 +244,6 @@ def get_fibrations():
   fibrations = cursor.fetchall()
   conn.close()
   return fibrations
-
 
 # ファイブレーションに対応するコホモロジー環と E_2-term を取得
 def get_fibration_cohomology(fibration,coefficient):
@@ -308,8 +270,8 @@ def get_fibration_cohomology(fibration,coefficient):
     }
   return None
 
+def get_tensor_product(fibration, coe, r, B_gens, F_gens):
 
-def get_tensor_product(B_gens, F_gens):
   max_p, max_q = 20, 20  # グリッドサイズ
   result_grid = [[[] for _ in range(max_q)] for _ in range(max_p)]
 
@@ -318,6 +280,7 @@ def get_tensor_product(B_gens, F_gens):
 
   for p in range(max_p):
     for q in range(max_q):
+      if (p,q) in {(0,5),(0,8),(6,0),(6,3)}: continue
       B_list = B_gens[p] if p < len(B_gens) else []
       F_list = F_gens[q] if q < len(F_gens) else []
 
@@ -334,6 +297,66 @@ def get_tensor_product(B_gens, F_gens):
 
   return result_grid
 
+def str_to_tuple(s):
+  """ '(a,b)' のような文字列を (a, b) のタプルに変換する """
+  s = s.strip("()")  # 括弧を除去
+  elements = s.split(",")  # カンマで分割
+  parsed_elements = [int(e) if e.strip().isdigit() else e.strip() for e in elements]  # 型変換
+  return tuple(parsed_elements)
+
+def get_deleted(F,E,B,coe):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  cursor.execute("SELECT r,kill FROM fibration WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  result = cursor.fetchall()
+  conn.commit()
+  conn.close()
+
+  dels = [set() for _ in range(max_deg+1)]
+
+  for row in result:
+    dels[row[0]+1]=set(map(str_to_tuple,smart_split(row[1])))
+  for i in range(max_deg):
+    dels[i+1] |= dels[i]
+
+  return dels
+
+def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  cursor.execute("SELECT r,kill FROM fibration WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  result = cursor.fetchone()
+  conn.commit()
+  conn.close()
+
+  max_p, max_q = 20, 20  # グリッドサイズ
+  result_grid = [[[] for _ in range(max_q)] for _ in range(max_p)]
+
+  # 1 ⊗ 1 = 1 を設定
+  result_grid[0][0].append("1")
+
+  dels = get_deleted(F,E,B,coe)
+
+  for p in range(max_p):
+    for q in range(max_q):
+      if (p,q) in dels[r]: continue
+      B_list = B_gens[p] if p < len(B_gens) else []
+      F_list = F_gens[q] if q < len(F_gens) else []
+
+      for b in B_list:
+        for f in F_list:
+          if b == "1" and f == "1":
+            continue  # すでに 1 を設定済み
+          elif b == "1":
+            result_grid[p][q].append(f" {f}")  # 1 ⊗ f = f
+          elif f == "1":
+            result_grid[p][q].append(f"{b} ")  # b ⊗ 1 = b
+          else:
+            result_grid[p][q].append(f"{b} \otimes {f}")  # 一般形 b ⊗ f
+
+  return result_grid
 
 # ホームページ (ファイブレーション選択)
 @app.route("/", methods=["GET", "POST"])
@@ -346,35 +369,29 @@ def index():
   r=request.form.get("r", "2")
   tensor_product_grid = [[[] for _ in range(20)] for _ in range(20)]
 
+  r=int(r)
+
   if request.method == "POST":
     selected_fibration = request.form.get("fibration")
     selected_coefficient = request.form.get("coefficient")
     
     if selected_fibration:
-      # F, E, B = selected_fibration.strip().split(",")
-      print(smart_split(selected_fibration))
       F,E,B = smart_split(selected_fibration)
       cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
-      # print(F,E,B)
-      F_gens=get_cohomology_structure(F,selected_coefficient,"F")
       B_gens=get_cohomology_structure(B,selected_coefficient,"B")
-      # print(F_gens)
-      # print(B_gens)
+      F_gens=get_cohomology_structure(F,selected_coefficient,"F")
 
-      # B_gens と F_gens は get_cohomology_structure(F), get_cohomology_structure(B) の出力
-      tensor_product_grid = get_tensor_product(B_gens, F_gens)
-      # for i in range(9):
-      #   print(tensor_product_grid[i][:10])
-      # print(tensor_product_grid[6][3])
+      tensor_product_grid = get_Er_term(F,E,B, selected_coefficient, r, B_gens, F_gens)
 
+  E_gens = get_cohomology_structure(E, selected_coefficient, "E")
 
   return render_template("index.html", fibrations=fibrations \
     , selected_fibration=selected_fibration \
     , selected_coefficient=selected_coefficient \
     , cohomologies=cohomologies \
     , tensor_product_grid=tensor_product_grid \
+    , E_gens=E_gens \
     , r=r)
-
 
 if __name__ == "__main__":
   app.run(debug=True)
