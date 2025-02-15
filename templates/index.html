@@ -86,7 +86,7 @@
       {% endfor %}
     </select>
     <button type="submit">Run</button>
-
+    　　　　　　 \( {{ cohomologies['F'][0] }} \to {{ cohomologies['E'][0] }} \to {{ cohomologies['B'][0] }} \)
     <p>
     <label for="coefficient">Coefficient Ring:</label>
     <select name="coefficient" id="coefficient">
@@ -98,11 +98,13 @@
       <option value="7" {% if selected_coefficient == "7" %}selected{% endif %}> Z_7 </option>
     </select>
     <button type="submit">Run</button>
+    　　　　　　　　　　　　　　　　 \( E_2^{*,*} = H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) \otimes H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['E2'] }} \)
     </p>
 
-    <p> \(r\) <input type="number" name="r" value={{r}} required> \( \ \ r = {{r}} \ \ \) 
-        <input type="submit" value="Run">
-        <input type="submit" value="Kill">
+    <p> 
+      \(r\) <input type="number" name="r" value={{r}} required> \( \ \ r = {{r}} \ \ \) 
+      <input type="submit" value="Run">
+      <input type="button" value="Kill" id="Kill">
     </p>
   </form>
 
@@ -147,10 +149,6 @@
           MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
         </script>
       </div>
-
-      
-
-
       
       <!-- 横軸 (p) ラベル -->
       <div class="x-coordinates">
@@ -161,6 +159,25 @@
             xLabel.textContent = x;
             xCoordsContainer.appendChild(xLabel);
           }
+        </script>
+      </div>
+
+      <!-- Eのコホモロジーの元を横に並べて表示 -->
+      <div class="e-cohomology" style="display: grid; grid-template-columns: repeat(20, 60px); gap: 1px; text-align: center; font-size: 12px; font-weight: bold;">
+        <script>
+          const eCohomologyContainer = document.currentScript.parentNode;
+          let Egens = {{ E_gens | tojson | safe }};
+          for (let x = 0; x < 20; x++) {
+            const eLabel = document.createElement("div");
+            eLabel.style.padding = "5px";
+            if (Egens[x].length > 0) {
+              eLabel.innerHTML = "\\(" + Egens[x].join(", ") + "\\)";
+            } else {
+              eLabel.innerHTML = "\\( \\)";
+            }
+            eCohomologyContainer.appendChild(eLabel);
+          }
+          MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
         </script>
       </div>
     </div>
@@ -174,8 +191,8 @@
     <svg class="arrow" width="1200" height="500" id="mysvg">
       <defs>
         <!-- 青色矢尻 -->
-        <marker id="arrowhead-blue" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="blue" fill-opacity="0.7" />
+        <marker id="arrowhead-lightskyblue" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="lightskyblue" fill-opacity="0.7" />
         </marker>
         <!-- bisque色矢尻 -->
         <marker id="arrowhead-bisque" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto">
@@ -218,7 +235,7 @@
             line.setAttribute("y1", start.y);
             line.setAttribute("x2", end.x - 20);
             line.setAttribute("y2", end.y);
-            line.setAttribute("stroke", colorMarker === "blue" ? "blue" : "bisque");
+            line.setAttribute("stroke", colorMarker === "lightskyblue" ? "lightskyblue" : "bisque");
             line.setAttribute("stroke-width", "1.5");
             // ここで透明度を設定（例: 0.5 で50%透過）
             line.setAttribute("stroke-opacity", "0.7");
@@ -227,15 +244,23 @@
           }
   
           // ========== 青色矢印 =============
-          // d_6(y)=e => y: (0,5), e: (6,0)
-          <!-- drawArrow(0, 5, "blue"); -->
   
           // tensor_product_grid が空でないセルを起点として矢印を描画する
           for (let col = 0; col < cols; col++) {
             for (let row = 0; row < rows; row++) {
+              // 始点セルが空でないかチェック
               if (tensorProductGrid[col] && tensorProductGrid[col][row] && tensorProductGrid[col][row].length > 0) {
-                // このセルは空ではないので、矢印の始点とする
-                drawArrow(col, row, "bisque", rValue);
+                // 行先のセルのインデックスを計算
+                const destCol = col + rValue;
+                const destRow = row - rValue + 1;
+                let colorMarker = "bisque";  // デフォルトは bisque
+                // 行先のセルが範囲内であり、かつ空でない場合
+                if (destCol < cols && destRow >= 0 &&
+                    tensorProductGrid[destCol] && tensorProductGrid[destCol][destRow] &&
+                    tensorProductGrid[destCol][destRow].length > 0) {
+                  colorMarker = "lightskyblue";
+                }
+                drawArrow(col, row, colorMarker, rValue);
               }
             }
           }
@@ -244,14 +269,36 @@
     </svg>
   </div>
 
+  <script>
+    document.getElementById('Kill').addEventListener('click', () => {
+      // blueEndpoints が存在していなければ何もしない
+      if (!window.blueEndpoints) return;
+      
+      // グリッド内の各セルについて、data-col と data-row の組み合わせが
+      // blueEndpoints セットに含まれていれば、そのセルの内容をクリアする
+      document.querySelectorAll('.cell').forEach(cell => {
+        const col = cell.getAttribute('data-col');
+        const row = cell.getAttribute('data-row');
+        if (window.blueEndpoints.has(`${col},${row}`)) {
+          cell.innerHTML = "";
+        }
+      });
+      
+      // オプション：SVG 内の青色矢印（stroke="blue"）も削除する場合
+      const svg = document.getElementById("mysvg");
+      svg.querySelectorAll("line").forEach(line => {
+        if (line.getAttribute("stroke") === "lightskyblue") {
+          line.remove();
+        }
+      });
+    });
+  </script>      
+
+
   {% if cohomologies %}
-  <h3> \( {{ cohomologies['F'][0] }} \to {{ cohomologies['E'][0] }} \to {{ cohomologies['B'][0] }} \) </h3>
-
-  <h3> \( E_2^{*,*} = H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) \otimes H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['E2'] }} \) </h3>
-
-  <h3> \( H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['F'][2] }} \) </h3>
-  <h3> \( H^*({{ cohomologies['E'][0] }}; {{ cohomologies['E'][1] }}) = {{ cohomologies['E'][2] }} \) </h3>
-  <h3> \( H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) = {{ cohomologies['B'][2] }} \) </h3>
+  <h4> \( H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['F'][2] }} \) </h4>
+  <h4> \( H^*({{ cohomologies['E'][0] }}; {{ cohomologies['E'][1] }}) = {{ cohomologies['E'][2] }} \) </h4>
+  <h4> \( H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) = {{ cohomologies['B'][2] }} \) </h4>
   {% endif %}
 </body>
 </html>
