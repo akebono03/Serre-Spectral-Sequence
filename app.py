@@ -14,6 +14,7 @@ df_cohomology = pd.read_csv("cohomology.csv").dropna()
 df_fibration = pd.read_csv("fibration.csv").dropna()
 df_product = pd.read_csv("product.csv").dropna()
 df_ideal = pd.read_csv("ideal.csv").dropna()
+df_reference = pd.read_csv("reference.csv").dropna()
 
 # SQLiteデータベースに接続
 conn = sqlite3.connect("cohomology.db", check_same_thread=False)
@@ -70,6 +71,18 @@ CREATE TABLE IF NOT EXISTS ideal (
 )
 """)
 df_ideal.to_sql("ideal", conn, if_exists="replace", index=False)
+
+# referenceテーブル作成
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS reference (
+  F TEXT,
+  E TEXT,
+  B TEXT,
+  coe INTEGER,
+  reference TEXT
+)
+""")
+df_reference.to_sql("reference", conn, if_exists="replace", index=False)
 
 
 conn.commit()
@@ -390,6 +403,14 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
 
   return result_grid
 
+
+def get_reference(F, E, B, coefficient):
+  reference_row = df_reference[(df_reference["F"] == F) &
+                                (df_reference["E"] == E) &
+                                (df_reference["B"] == B) &
+                                (df_reference["coe"] == int(coefficient))]
+  return reference_row["reference"].values[0] if not reference_row.empty else None
+
 # ホームページ (ファイブレーション選択)
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -416,6 +437,7 @@ def index():
       tensor_product_grid = get_Er_term(F,E,B, selected_coefficient, r, B_gens, F_gens)
 
   E_gens = get_cohomology_structure(E, selected_coefficient, "E")
+  reference = get_reference(F,E,B,selected_coefficient)
 
   return render_template("index.html", fibrations=fibrations \
     , selected_fibration=selected_fibration \
@@ -423,6 +445,7 @@ def index():
     , cohomologies=cohomologies \
     , tensor_product_grid=tensor_product_grid \
     , E_gens=E_gens \
+    , reference=reference \
     , r=r)
 
 if __name__ == "__main__":
