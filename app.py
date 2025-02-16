@@ -24,10 +24,12 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS cohomology (
   space TEXT,
   coe INTEGER,
+  type INTEGER,
   id INTEGER,
   deg INTEGER,
   generator TEXT,
-  nil_exp INTEGER
+  nil_exp INTEGER,
+  gen_order INTEGER
 )
 """)
 df_cohomology.to_sql("cohomology", conn, if_exists="replace", index=False)
@@ -97,7 +99,7 @@ def get_cohomology_structure(space, coefficient, type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  cursor.execute("SELECT deg, id, generator, nil_exp FROM cohomology WHERE space=? AND coe=?", (space,coefficient,))
+  cursor.execute("SELECT gen_type, deg, id, generator, nil_exp FROM cohomology WHERE space=? AND coe=?", (space,coefficient,))
   results = cursor.fetchall()
   # cursor.execute("SELECT deg1, id1, deg2, id2, result FROM product WHERE space=? AND coe=?", (space,coefficient,))
   # prod_res = cursor.fetchall()
@@ -110,12 +112,14 @@ def get_cohomology_structure(space, coefficient, type):
 
   odd_generators=[]
   even_generators=[]
+  except_generators=[]
+
   odd_list=[]
   even_list=[]
   gen_deg=defaultdict(int)
 
   for row in results:
-    deg, id, nil_exp = int(row["deg"]), int(row["id"]), int(row["nil_exp"])
+    gen_type, deg, id, nil_exp = int(row["gen_type"]), int(row["deg"]), int(row["id"]), int(row["nil_exp"])
     a,b={"B":("a","b"), "E":("x","y"), "F":("u","v")}[type]
 
     generator=""
@@ -130,45 +134,51 @@ def get_cohomology_structure(space, coefficient, type):
       else:
         generator=f"{b}_{ {{deg}},{{id}} }"
 
-    cohomology_dict[deg].append(generator)
-    gen_deg[generator]=deg
-    
-    # 偶数次元の生成元のi乗
-    if deg % 2 == 0:
-      even_generators.append(generator)
-      even_list.append(generator)
-      i=2
-      while deg*i<=max_deg and i<nil_exp:
-        cohomology_dict[deg*i].append(f"{generator}^{i}")
-        gen_deg[f"{generator}^{i}"]=deg*i
-        even_generators.append(f"{generator}^{i}")
-        even_list.append(f"{generator}^{i}")
-        i+=1
+    if gen_type == 5:
+      except_generators.append(generator)
+      cohomology_dict[deg].append(generator)
+      gen_deg[generator]=deg
     else:
-      odd_generators.append(generator)
-      odd_list.append(generator)
+      cohomology_dict[deg].append(generator)
+      gen_deg[generator]=deg
+    
+      # 偶数次元の生成元のi乗
+      if deg % 2 == 0:
+        even_generators.append(generator)
+        even_list.append(generator)
+        i=2
+        while deg*i<=max_deg and i<nil_exp:
+          cohomology_dict[deg*i].append(f"{generator}^{i}")
+          gen_deg[f"{generator}^{i}"]=deg*i
+          even_generators.append(f"{generator}^{i}")
+          even_list.append(f"{generator}^{i}")
+          i+=1
+      else:
+        odd_generators.append(generator)
+        odd_list.append(generator)
   
-  # 生成元の積を追加
-  odd_len=len(odd_generators)
-  for i in range(1,1<<odd_len):
-    tmp=[]
-    new_deg=0
-    for j in range(odd_len):
-      if i>>j&1:
-        tmp.append(odd_generators[j])
-        new_deg+=gen_deg[odd_generators[j]]
-    if len(tmp)>1:
-      cohomology_dict[new_deg].append(' '.join(tmp))
-      odd_list.append(' '.join(tmp))
-      gen_deg[' '.join(tmp)]=new_deg
-  
-  # oddとevenの積
-  for od in odd_list:
-    od_deg=gen_deg[od]
-    for ev in even_list:
-      ev_deg=gen_deg[ev]
-      cohomology_dict[od_deg+ev_deg].append(' '.join([od,ev]))
-      gen_deg[' '.join([od,ev])]=od_deg+ev_deg
+  if len(except_generators)==0:
+    # 生成元の積を追加
+    odd_len=len(odd_generators)
+    for i in range(1,1<<odd_len):
+      tmp=[]
+      new_deg=0
+      for j in range(odd_len):
+        if i>>j&1:
+          tmp.append(odd_generators[j])
+          new_deg+=gen_deg[odd_generators[j]]
+      if len(tmp)>1:
+        cohomology_dict[new_deg].append(' '.join(tmp))
+        odd_list.append(' '.join(tmp))
+        gen_deg[' '.join(tmp)]=new_deg
+    
+    # oddとevenの積
+    for od in odd_list:
+      od_deg=gen_deg[od]
+      for ev in even_list:
+        ev_deg=gen_deg[ev]
+        cohomology_dict[od_deg+ev_deg].append(' '.join([od,ev]))
+        gen_deg[' '.join([od,ev])]=od_deg+ev_deg
 
   for deg, gens in cohomology_dict.items():
     if deg<=max_deg:
@@ -183,7 +193,7 @@ def get_cohomology_tex(space, coefficient, type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  cursor.execute("SELECT id, deg, generator FROM cohomology WHERE space=? AND coe=?", (space,str(coefficient)))
+  cursor.execute("SELECT gen_type, id, deg, generator, gen_order FROM cohomology WHERE space=? AND coe=?", (space,str(coefficient)))
   results = cursor.fetchall()
   cursor.execute("SELECT ideal_generator FROM ideal WHERE space=? AND coe=?", (space,str(coefficient)))
   ideal_res = cursor.fetchall()
@@ -199,17 +209,30 @@ def get_cohomology_tex(space, coefficient, type):
   else:
     coe_tex = rf"\mathbb{{Z}}_{{{coefficient}}}"
 
+  # 一点の場合
   if space == '*':
     return coe_tex, coe_tex
 
+  
   odd_generators = []
   even_generators = []
+  except_generators = []
+  except_orders = []
   a,b={"B":("a","b"), "E":("x","y"), "F":("u","v")}[type]
 
   for row in results:
     deg = int(row["deg"])
     id = int(row["id"])
-    if deg % 2 == 1:
+    gen_type = int(row["gen_type"])
+    gen_order = int(row["gen_order"])
+    
+    if gen_type == 5:
+      if gen_order == 1:
+        except_generators.append("Z\{" + f"{a}_{{{deg}}}" + "\}")
+      else:
+        except_generators.append(f"Z_{{{gen_order}}}" + "\{" + f"{a}_{{{deg}}}" + "\}")
+
+    elif deg % 2 == 1:
       if id == 1:
         odd_generators.append(f"{a}_{{{deg}}}")
       else:
@@ -220,8 +243,17 @@ def get_cohomology_tex(space, coefficient, type):
       else:
         even_generators.append(f"{b}_{ {{deg}}, {{id}} }")
 
+
   terms = []
   ideal = []
+
+  # 例外の場合
+  if len(except_generators)>0:
+    except_generators.append("\cdots")
+    # terms.append(rf"{coe_tex}" + "\{" + ", ".join(except_generators) + "\}")
+    cohomology_tex = r" \oplus ".join(except_generators) if except_generators else "0"
+    return coe_tex, "Z\{1\}\\oplus " + cohomology_tex
+
   for row in ideal_res:
     ideal.append(row["ideal_generator"])
   if odd_generators:
