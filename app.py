@@ -6,13 +6,13 @@ from collections import defaultdict
 import re
 import csv 
 from io import StringIO
+from itertools import product
 
 app = Flask(__name__)
 
 # CSVファイルを読み込む
 df_cohomology = pd.read_csv("cohomology.csv").dropna()
 df_fibration = pd.read_csv("fibration.csv").dropna()
-df_product = pd.read_csv("product.csv").dropna()
 df_ideal = pd.read_csv("ideal.csv").dropna()
 df_reference = pd.read_csv("reference.csv").dropna()
 
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS cohomology (
   space TEXT,
   coe INTEGER,
   type INTEGER,
-  id INTEGER,
   deg INTEGER,
+  id INTEGER,
   generator TEXT,
   nil_exp INTEGER,
   gen_order INTEGER
@@ -47,20 +47,6 @@ CREATE TABLE IF NOT EXISTS fibration (
 )
 """)
 df_fibration.to_sql("fibration", conn, if_exists="replace", index=False)
-
-# プロダクトテーブル作成
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS product (
-  space TEXT,
-  coe INTEGER,
-  deg1 INTEGER,
-  id1 INTEGER,
-  deg2 INTEGER,
-  id2 INTEGER,
-  result INTEGER
-)
-""")
-df_product.to_sql("product", conn, if_exists="replace", index=False)
 
 # イデアルテーブル作成
 cursor.execute("""
@@ -107,15 +93,62 @@ def smart_split(selected_fibration):
   s=''.join(s)
   return s.split('.')
 
+def get_generator_list(space, coefficient, space_type):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  cursor.execute("SELECT gen_type, deg, id, nil_exp, g_order FROM cohomology WHERE space=? AND coe=?", (space,coefficient,))
+  results = cursor.fetchall()
+  conn.close()
 
-def get_cohomology_structure(space, coefficient, type):
+  id_list = [[] for _ in range(max_deg+1)]
+  gen_list = []
+  gen_deg = defaultdict(int)
+  gen_order = defaultdict(int)
+  gen_nil = defaultdict(int)
+  is_except = False
+
+  for row in results:
+    gen_type, deg, id, nil_exp, order = int(row["gen_type"]), int(row["deg"]), int(row["id"]), int(row["nil_exp"]), int(row["g_order"])
+    id_list[deg].append((id,nil_exp,order))
+    if gen_type == 5:
+      is_except = True
+
+  deg_only_one = True
+  cnt=0
+  for deg in range(max_deg+1):
+    if len(id_list[deg])>0:
+      cnt+=1
+  if cnt>1:
+    deg_only_one = False
+
+  for deg in range(max_deg+1):
+    if len(id_list[deg])==0: continue
+    x = {"B":("b","a"), "E":("y","x"), "F":("v","u")}[space_type][deg%2]
+    if len(id_list[deg])==1:
+      gen = x if deg_only_one else f"{x}_{{{deg}}}"
+      gen_list.append(gen)
+      gen_deg[gen] = deg
+      _, nil_exp, order = id_list[deg][0]
+      gen_order[gen] = order
+      gen_nil[gen] = nil_exp
+    else:
+      for id, nil_exp, order in id_list[deg]:
+        gen = f"{x}_{{{id}}}" if deg_only_one else x + "_{" + str(deg) + "," + str(id) + "}"
+        gen_list.append(gen)
+        gen_deg[gen] = deg
+        gen_order[gen] = order
+        gen_nil[gen] = nil_exp
+
+  return gen_list, gen_deg, gen_order, gen_nil, is_except
+
+
+def get_cohomology_structure(space, coefficient, space_type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
   cursor.execute("SELECT gen_type, deg, id, generator, nil_exp FROM cohomology WHERE space=? AND coe=?", (space,coefficient,))
   results = cursor.fetchall()
-  # cursor.execute("SELECT deg1, id1, deg2, id2, result FROM product WHERE space=? AND coe=?", (space,coefficient,))
-  # prod_res = cursor.fetchall()
   conn.close()
 
   result_list = [[] for _ in range(max_deg + 1)]
@@ -125,88 +158,61 @@ def get_cohomology_structure(space, coefficient, type):
 
   odd_generators=[]
   even_generators=[]
-  except_generators=[]
 
-  odd_list=[]
-  even_list=[]
-  gen_deg=defaultdict(int)
+  gen_list, gen_deg, _, gen_nil, is_except = get_generator_list(space, coefficient, space_type)
 
-  for row in results:
-    gen_type, deg, id, nil_exp = int(row["gen_type"]), int(row["deg"]), int(row["id"]), int(row["nil_exp"])
-    a,b={"B":("a","b"), "E":("x","y"), "F":("u","v")}[type]
+  # 例外の場合
+  if is_except:
+    for gen in gen_list:
+      result_list[gen_deg[gen]].append(gen)
+    result_list[0].append('1')
+    return result_list
 
-    generator=""
-    if deg%2==1:
-      if id==1:
-        generator=f"{a}_{{{deg}}}"
-      else:
-        generator=f"{a}_{ {{deg}},{{id}} }"
+  # 通常の場合
+  for gen in gen_list:
+    if gen_deg[gen]%2 == 1:
+      odd_generators.append(gen)
     else:
-      if id==1:
-        generator=f"{b}_{{{deg}}}"
-      else:
-        generator=f"{b}_{ {{deg}},{{id}} }"
+      even_generators.append(gen)
 
-    if gen_type == 5:
-      except_generators.append(generator)
-      cohomology_dict[deg].append(generator)
-      gen_deg[generator]=deg
-    else:
-      cohomology_dict[deg].append(generator)
-      gen_deg[generator]=deg
-    
-      # 偶数次元の生成元のi乗
-      if deg % 2 == 0:
-        even_generators.append(generator)
-        even_list.append(generator)
-        i=2
-        while deg*i<=max_deg and i<nil_exp:
-          cohomology_dict[deg*i].append(f"{generator}^{i}")
-          gen_deg[f"{generator}^{i}"]=deg*i
-          even_generators.append(f"{generator}^{i}")
-          even_list.append(f"{generator}^{i}")
-          i+=1
-      else:
-        odd_generators.append(generator)
-        odd_list.append(generator)
-  
-  if len(except_generators)==0:
-    # 生成元の積を追加
-    odd_len=len(odd_generators)
-    for i in range(1,1<<odd_len):
-      tmp=[]
-      new_deg=0
-      for j in range(odd_len):
-        if i>>j&1:
-          tmp.append(odd_generators[j])
-          new_deg+=gen_deg[odd_generators[j]]
-      if len(tmp)>1:
-        cohomology_dict[new_deg].append(' '.join(tmp))
-        odd_list.append(' '.join(tmp))
-        gen_deg[' '.join(tmp)]=new_deg
-    
-    # oddとevenの積
-    for od in odd_list:
-      od_deg=gen_deg[od]
-      for ev in even_list:
-        ev_deg=gen_deg[ev]
-        cohomology_dict[od_deg+ev_deg].append(' '.join([od,ev]))
-        gen_deg[' '.join([od,ev])]=od_deg+ev_deg
+  nil_list = []
+  for odd_gen in odd_generators:
+    nil_list.append([1,odd_gen])
+  for even_gen in even_generators:
+    nil_list.append([1, even_gen])
+    i=2
+    deg = gen_deg[even_gen]
+    while deg*i<=max_deg and i<gen_nil[even_gen]:
+      nil_list[-1].append(f"{even_gen}^{{{i}}}")
+      gen_deg[f"{even_gen}^{{{i}}}"] = deg*i
+      i+=1
 
-  for deg, gens in cohomology_dict.items():
-    if deg<=max_deg:
+  combinations = list(product(*nil_list))
+  for comb in combinations:
+    new_deg = 0
+    new_el = []
+    for el in comb:
+      if el == 1: continue
+      new_deg += gen_deg[el]
+      new_el.append(el)
+    if len(new_el)>0:
+      cohomology_dict[new_deg].append(" ".join(new_el))
+
+  for deg in cohomology_dict.keys():
+    gens = cohomology_dict[deg]
+    gens.sort()
+    if deg <= max_deg:
       result_list[deg] = gens
 
-  result_list[0]=['1']
-
+  result_list[0]=['1'] # 必要
   return result_list
 
-# コホモロジー環を取得する関数
-def get_cohomology_tex(space, coefficient, type):
+# コホモロジー環の係数と環構造を取得する関数
+def get_cohomology_tex(space, coefficient, space_type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  cursor.execute("SELECT gen_type, id, deg, generator, gen_order FROM cohomology WHERE space=? AND coe=?", (space,str(coefficient)))
+  cursor.execute("SELECT gen_type, deg, id, generator, g_order FROM cohomology WHERE space=? AND coe=?", (space,str(coefficient)))
   results = cursor.fetchall()
   cursor.execute("SELECT ideal_generator FROM ideal WHERE space=? AND coe=?", (space,str(coefficient)))
   ideal_res = cursor.fetchall()
@@ -226,46 +232,32 @@ def get_cohomology_tex(space, coefficient, type):
   if space == '*':
     return coe_tex, coe_tex
 
-  
+  gen_list, gen_deg, gen_order, _, is_except = get_generator_list(space, coefficient, space_type)
+
+  # 例外の場合
+  if is_except:
+    groups = []
+    for gen in gen_list:
+      if gen_order[gen] == 1:
+        groups.append("Z\{" + gen + "\}")
+      else:
+        groups.append(f"Z_{{{gen_order[gen]}}}" + "\{" + gen + "\}")      
+
+    groups.append("\cdots")
+    cohomology_tex = r" \oplus ".join(groups) if groups else "0"
+    return coe_tex, "Z\{1\}\\oplus " + cohomology_tex
+
+  # 通常の場合
   odd_generators = []
   even_generators = []
-  except_generators = []
-  except_orders = []
-  a,b={"B":("a","b"), "E":("x","y"), "F":("u","v")}[type]
-
-  for row in results:
-    deg = int(row["deg"])
-    id = int(row["id"])
-    gen_type = int(row["gen_type"])
-    gen_order = int(row["gen_order"])
-    
-    if gen_type == 5:
-      if gen_order == 1:
-        except_generators.append("Z\{" + f"{a}_{{{deg}}}" + "\}")
-      else:
-        except_generators.append(f"Z_{{{gen_order}}}" + "\{" + f"{a}_{{{deg}}}" + "\}")
-
-    elif deg % 2 == 1:
-      if id == 1:
-        odd_generators.append(f"{a}_{{{deg}}}")
-      else:
-        odd_generators.append(f"{a}_{ {{deg}}, {{id}} }")
-    else:
-      if id == 1:
-        even_generators.append(f"{b}_{{{deg}}}")
-      else:
-        even_generators.append(f"{b}_{ {{deg}}, {{id}} }")
-
-
   terms = []
   ideal = []
 
-  # 例外の場合
-  if len(except_generators)>0:
-    except_generators.append("\cdots")
-    # terms.append(rf"{coe_tex}" + "\{" + ", ".join(except_generators) + "\}")
-    cohomology_tex = r" \oplus ".join(except_generators) if except_generators else "0"
-    return coe_tex, "Z\{1\}\\oplus " + cohomology_tex
+  for gen in gen_list:
+    if gen_deg[gen]%2 == 1:
+      odd_generators.append(gen)
+    else:
+      even_generators.append(gen)
 
   for row in ideal_res:
     ideal.append(row["ideal_generator"])
@@ -279,6 +271,7 @@ def get_cohomology_tex(space, coefficient, type):
 
   cohomology_tex = r" \otimes ".join(terms) if terms else "0"
   return coe_tex, cohomology_tex
+
 
 # ファイブレーションのリストを取得
 def get_fibrations():
@@ -314,33 +307,6 @@ def get_fibration_cohomology(fibration,coefficient):
       "B": (result["B"], b_coe, b_cohomology),
     }
   return None
-
-def get_tensor_product(fibration, coe, r, B_gens, F_gens):
-
-  max_p, max_q = 20, 20  # グリッドサイズ
-  result_grid = [[[] for _ in range(max_q)] for _ in range(max_p)]
-
-  # 1 ⊗ 1 = 1 を設定
-  result_grid[0][0].append("1")
-
-  for p in range(max_p):
-    for q in range(max_q):
-      if (p,q) in {(0,5),(0,8),(6,0),(6,3)}: continue
-      B_list = B_gens[p] if p < len(B_gens) else []
-      F_list = F_gens[q] if q < len(F_gens) else []
-
-      for b in B_list:
-        for f in F_list:
-          if b == "1" and f == "1":
-            continue  # すでに 1 を設定済み
-          elif b == "1":
-            result_grid[p][q].append(f" {f}")  # 1 ⊗ f = f
-          elif f == "1":
-            result_grid[p][q].append(f"{b} ")  # b ⊗ 1 = b
-          else:
-            result_grid[p][q].append(f"{b} \otimes {f}")  # 一般形 b ⊗ f
-
-  return result_grid
 
 def str_to_tuple(s):
   """ '(a,b)' のような文字列を (a, b) のタプルに変換する """
@@ -419,6 +385,12 @@ def index():
   selected_coefficient = "1"
   cohomologies = None
 
+  F,E,B="SU(3)","SU(4)","S^{7}" # 初期値
+  cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
+  B_gens = get_cohomology_structure(B,selected_coefficient,"B")
+  F_gens = get_cohomology_structure(F,selected_coefficient,"F")
+
+
   r=request.form.get("r", "2")
   tensor_product_grid = [[[] for _ in range(20)] for _ in range(20)]
 
@@ -431,10 +403,14 @@ def index():
     if selected_fibration:
       F,E,B = smart_split(selected_fibration)
       cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
-      B_gens=get_cohomology_structure(B,selected_coefficient,"B")
-      F_gens=get_cohomology_structure(F,selected_coefficient,"F")
+      B_gens = get_cohomology_structure(B,selected_coefficient,"B")
+      F_gens = get_cohomology_structure(F,selected_coefficient,"F")
 
       tensor_product_grid = get_Er_term(F,E,B, selected_coefficient, r, B_gens, F_gens)
+
+  # print(get_generator_list(F,selected_coefficient,"F"))
+  # print(get_generator_list(E,selected_coefficient,"E"))
+  # print(get_generator_list(B,selected_coefficient,"B"))
 
   E_gens = get_cohomology_structure(E, selected_coefficient, "E")
   reference = get_reference(F,E,B,selected_coefficient)
