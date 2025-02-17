@@ -76,6 +76,13 @@
 <body>
   <!-- <h1>Serre Spectral Sequence of Fibration</h1> -->
   <form method="post">
+    <p> 
+      \(r\) <input type="number" name="r" value={{r}} required> \( \ \ r = {{r}} \ \ \) 
+      <input type="submit" value="Run">
+      <input type="button" value="Kill" id="Kill">
+    </p>
+
+
     <label for="fibration">Fibration:</label>
     <select name="fibration" id="fibration">
       {% for fib in fibrations %}
@@ -101,11 +108,6 @@
     　　　　　　　　　　　　　　　　 \( E_2^{*,*} = H^*({{ cohomologies['B'][0] }}; {{ cohomologies['B'][1] }}) \otimes H^*({{ cohomologies['F'][0] }}; {{ cohomologies['F'][1] }}) = {{ cohomologies['E2'] }} \)
     </p>
 
-    <p> 
-      \(r\) <input type="number" name="r" value={{r}} required> \( \ \ r = {{r}} \ \ \) 
-      <input type="submit" value="Run">
-      <input type="button" value="Kill" id="Kill">
-    </p>
   </form>
 
   <div class="grid-container">
@@ -163,7 +165,7 @@
       </div>
 
       <!-- Eのコホモロジーの元を横に並べて表示 -->
-      <div class="e-cohomology" style="display: grid; grid-template-columns: repeat(20, 60px); gap: 1px; text-align: center; font-size: 12px; font-weight: bold;">
+      <div class="e-cohomology" style="display: grid; grid-template-columns: repeat(20, 60px); gap: 1px; text-align: center; font-size: 10px; font-weight: bold;">
         <script>
           const eCohomologyContainer = document.currentScript.parentNode;
           let Egens = {{ E_gens | tojson | safe }};
