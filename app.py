@@ -207,6 +207,33 @@ def get_cohomology_structure(space, coefficient, space_type):
   result_list[0]=['1'] # 必要
   return result_list
 
+def get_ideal(space, coefficient, space_type):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  # cursor.execute("SELECT gen_type, deg, id, generator, g_order FROM cohomology WHERE space=? AND coe=?", (space,str(coefficient)))
+  # results = cursor.fetchall()
+  cursor.execute("SELECT ideal_generator FROM ideal WHERE space=? AND coe=?", (space,str(coefficient)))
+  ideal_res = cursor.fetchall()
+  conn.close()
+
+  ideal = []
+  for row in ideal_res:
+    ideal_gen = row["ideal_generator"]
+    x,y = {"B":("b","a"), "E":("y","x"), "F":("v","u")}[space_type]
+    tmp = []
+    for c in ideal_gen:
+      if c in {"b","y","v"}:
+        tmp.append(x)
+      elif c in {"a","x","u"}:
+        tmp.append(y)
+      else:
+        tmp.append(c) 
+    new_ideal_gen = "".join(tmp)
+    ideal.append(new_ideal_gen)
+  return ideal
+
+
 # コホモロジー環の係数と環構造を取得する関数
 def get_cohomology_tex(space, coefficient, space_type):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
@@ -214,8 +241,6 @@ def get_cohomology_tex(space, coefficient, space_type):
   cursor = conn.cursor()
   cursor.execute("SELECT gen_type, deg, id, generator, g_order FROM cohomology WHERE space=? AND coe=?", (space,str(coefficient)))
   results = cursor.fetchall()
-  cursor.execute("SELECT ideal_generator FROM ideal WHERE space=? AND coe=?", (space,str(coefficient)))
-  ideal_res = cursor.fetchall()
   conn.close()
 
   if not results:
@@ -251,7 +276,6 @@ def get_cohomology_tex(space, coefficient, space_type):
   odd_generators = []
   even_generators = []
   terms = []
-  ideal = []
 
   for gen in gen_list:
     if gen_deg[gen]%2 == 1:
@@ -259,8 +283,8 @@ def get_cohomology_tex(space, coefficient, space_type):
     else:
       even_generators.append(gen)
 
-  for row in ideal_res:
-    ideal.append(row["ideal_generator"])
+  ideal = get_ideal(space, coefficient, space_type)
+  
   if odd_generators:
     terms.append(r"\Lambda(" + ", ".join(odd_generators) + ")")
   if even_generators:
@@ -377,6 +401,7 @@ def get_reference(F, E, B, coefficient):
                                 (df_reference["coe"] == int(coefficient))]
   return reference_row["reference"].values[0] if not reference_row.empty else None
 
+
 # ホームページ (ファイブレーション選択)
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -408,9 +433,9 @@ def index():
 
       tensor_product_grid = get_Er_term(F,E,B, selected_coefficient, r, B_gens, F_gens)
 
-  # print(get_generator_list(F,selected_coefficient,"F"))
-  # print(get_generator_list(E,selected_coefficient,"E"))
-  # print(get_generator_list(B,selected_coefficient,"B"))
+  # print(get_ideal(F,selected_coefficient,"F"))
+  # print(get_ideal(E,selected_coefficient,"E"))
+  # print(get_ideal(B,selected_coefficient,"B"))
 
   E_gens = get_cohomology_structure(E, selected_coefficient, "E")
   reference = get_reference(F,E,B,selected_coefficient)
