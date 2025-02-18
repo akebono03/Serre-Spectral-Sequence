@@ -1,4 +1,4 @@
 F,E,B,coe,reference
 CP^{\infty},S^{3}\langle3\rangle,S^{3},1,"[戸田三村:ホモトピー論]p296, \ d_{3}(1\otimes v_{2}^{k})=k(a_{3}\otimes v_{2}^{k-1}) ."
 
-
+U(2)/T^{2},U(3)/T^{3},CP^{2},1,"P(U(n)/T^{n},t)=\prod_{i=1}^{n} \frac{1-t^{2i}}{1-t^{2}}"
