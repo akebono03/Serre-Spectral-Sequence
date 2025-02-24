@@ -95,7 +95,7 @@
     <button type="submit">Run</button>
     　　　　　　 \( {{ cohomologies['F'][0] }} \to {{ cohomologies['E'][0] }} \to {{ cohomologies['B'][0] }} \)
     <p>
-    <label for="coefficient">Coefficient Ring:</label>
+    <label for="coefficient">Coefficient:</label>
     <select name="coefficient" id="coefficient">
       <option value="0" {% if selected_coefficient == "0" %}selected{% endif %}> Q </option>
       <option value="1" {% if selected_coefficient == "1" %}selected{% endif %}> Z </option>
@@ -141,6 +141,7 @@
                 const terms = tensorProductGrid[col][row];
                 if (terms.length > 0) {
                   cell.innerHTML = "\\(" + terms.join(", ") + "\\)";
+                  // cell.innerHTML = terms.map(term => `\\(${term}\\)`).join("<br>");
                 }
               }
               grid.appendChild(cell);

@@ -7,6 +7,8 @@ import re
 import csv 
 from io import StringIO
 from itertools import product
+import sympy as sp
+from sympy.parsing.latex import parse_latex
 
 app = Flask(__name__)
 
@@ -15,6 +17,8 @@ df_cohomology = pd.read_csv("cohomology.csv").dropna()
 df_fibration = pd.read_csv("fibration.csv").dropna()
 df_ideal = pd.read_csv("ideal.csv").dropna()
 df_reference = pd.read_csv("reference.csv").dropna()
+df_differential = pd.read_csv("differential.csv").dropna()
+df_differential2 = pd.read_csv("differential2.csv").dropna()
 
 # SQLiteデータベースに接続
 conn = sqlite3.connect("cohomology.db", check_same_thread=False)
@@ -70,13 +74,43 @@ CREATE TABLE IF NOT EXISTS reference (
 """)
 df_reference.to_sql("reference", conn, if_exists="replace", index=False)
 
+# differentialテーブル作成
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS differential (
+  F TEXT,
+  E TEXT,
+  B TEXT,
+  coe INTEGER,
+  r INTEGER,
+  gen TEXT,
+  dgen TEXT
+)
+""")
+df_differential.to_sql("differential", conn, if_exists="replace", index=False)
+
+
+# differential2 テーブル作成
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS differential2 (
+  F TEXT,
+  E TEXT,
+  B TEXT,
+  coe INTEGER,
+  r INTEGER,
+  gen1 TEXT,
+  gen2 TEXT,
+  dgen1 TEXT,
+  dgen2 TEXT
+)
+""")
+df_differential2.to_sql("differential2", conn, if_exists="replace", index=False)
 
 conn.commit()
 conn.close()
 
 print("CSVデータをSQLiteにインポートしました。")
 
-max_deg = 30
+max_deg = 20
 
 
 def smart_split(selected_fibration):
@@ -264,13 +298,13 @@ def get_cohomology_tex(space, coefficient, space_type):
     groups = []
     for gen in gen_list:
       if gen_order[gen] == 1:
-        groups.append("Z\{" + gen + "\}")
+        groups.append("\mathbb{Z}\{" + gen + "\}")
       else:
-        groups.append(f"Z_{{{gen_order[gen]}}}" + "\{" + gen + "\}")      
+        groups.append(f"\mathbb{{Z}}_{{{gen_order[gen]}}}" + "\{" + gen + "\}")      
 
     groups.append("\cdots")
     cohomology_tex = r" \oplus ".join(groups) if groups else "0"
-    return coe_tex, "Z\{1\}\\oplus " + cohomology_tex
+    return coe_tex, "\mathbb{Z}\{1\}\\oplus " + cohomology_tex
 
   # 通常の場合
   odd_generators = []
@@ -339,6 +373,39 @@ def str_to_tuple(s):
   parsed_elements = [int(e) if e.strip().isdigit() else e.strip() for e in elements]  # 型変換
   return tuple(parsed_elements)
 
+def get_differential(F,E,B,coe):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  cursor.execute("SELECT r,gen,dgen FROM differential WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  result = cursor.fetchall()
+  conn.commit()
+  conn.close()
+
+  dif = [defaultdict(lambda: "0") for _ in range(max_deg+1)]
+
+  for row in result:
+    dif[row["r"]][row["gen"]] = row["dgen"]
+
+  return dif
+
+def get_differential2(F,E,B,coe):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2 FROM differential2 WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  result = cursor.fetchall()
+  conn.commit()
+  conn.close()
+
+  dif = [defaultdict(lambda: "0") for _ in range(max_deg+1)]
+
+  for row in result:
+    dif[row["r"]][row["gen"]] = row["dgen"]
+
+  return dif
+
+
 def get_deleted(F,E,B,coe):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
@@ -351,13 +418,114 @@ def get_deleted(F,E,B,coe):
   dels = [set() for _ in range(max_deg+1)]
 
   for row in result:
-    dels[row[0]+1]=set(map(str_to_tuple,smart_split(row[1])))
+    dels[row["r"]+1]=set(map(str_to_tuple,smart_split(row["kill"])))
   for i in range(max_deg):
     dels[i+1] |= dels[i]
 
   return dels
 
+def get_target(B_gens, F_gens):
+  target_grid = [[set() for _ in range(max_deg+1)] for _ in range(max_deg+1)]
+  target_grid[0][0].add('1')
+
+  for p in range(max_deg+1):
+    for q in range(max_deg+1):
+      B_list = B_gens[p] if p < len(B_gens) else []
+      F_list = F_gens[q] if q < len(F_gens) else []
+      for b in B_list:
+        for f in F_list:
+          if b == "1" and f == "1":
+            continue  # すでに 1 を設定済み
+          elif b == "1":
+            target_grid[p][q].add(f"{f}")  # 1 ⊗ f = f
+          elif f == "1":
+            target_grid[p][q].add(f"{b}")  # b ⊗ 1 = b
+          else:
+            target_grid[p][q].add(f"{b} {f}")  # 一般形 b ⊗ f
+
+  return target_grid
+
 def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
+  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+  conn.row_factory = sqlite3.Row
+  cursor = conn.cursor()
+  # cursor.execute("SELECT r,kill FROM fibration WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  # result = cursor.fetchone()
+  cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2 FROM differential2 WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  result = cursor.fetchall()
+
+  conn.commit()
+  conn.close()
+
+  degree = defaultdict(lambda: (0,0))
+  non_zero_list = [[] for _ in range(r+1)]
+  non_sero_set = [set() for _ in range(r+1)]
+  for p in range(max_deg):
+    for q in range(max_deg):
+      for b in B_gens[p]:
+        for f in F_gens[q]:
+          degree[(b,f)] = (p,q)
+          non_zero_list[2].append((b,f))
+  # print(degree)
+  # print(f"non_zero_list = {non_zero_list[2]}")
+
+  result_grid = [[[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)] for _ in range(max_deg)]
+
+  for b,f in non_zero_list[2]:
+    p,q = degree[(b,f)]
+    result_grid[2][p][q].append(f"{b} \\otimes {f}")
+
+  if r == 2:
+    return result_grid
+
+  deleted_set = set()
+  dif = [defaultdict(lambda: ('0','0')) for _ in range(r)]
+  for row in result:
+    dif[row["r"]][(str(row["gen1"]),str(row["gen2"]))] = (str(row["dgen1"]),str(row["dgen2"]))
+  print(f"dif[2] = {dif[2]}")
+
+  for i in range(2,r):
+    non_sero_set[i] = set(non_zero_list[i])
+    for (b1,f1) in non_zero_list[i]:
+      p1,q1 = degree[(b1,f1)]
+      for (b2,f2) in non_zero_list[i]:
+        p2,q2 = degree[(b2,f2)]
+        if p1+p2+i>=max_deg:
+          continue
+          # break
+        # d2[(b1b2,f1f2)] = d2[(b1,f1)] (b2,f2) + (b1,f1) d2[(b2,f2)]
+        db1,df1 = dif[i][(b1,f1)]
+        db2,df2 = dif[i][(b2,f2)]
+        db12 = sp.latex(sp.simplify(parse_latex(db1 + '*' + b2 + '+' + b1 + '*' + db2)))
+        df12 = sp.latex(sp.simplify(parse_latex(df1 + '*' + f2 + '+' + f1 + '*' + df2)))
+        # deleted_set.add((db12,df12))
+        if (db12,df12) in non_sero_set[i]:
+          b12 = sp.latex(sp.simplify(parse_latex(b1 + '*' + b2)))
+          f12 = sp.latex(sp.simplify(parse_latex(f1 + '*' + f2)))
+          dif[i][(b12,f12)] = (db12,df12)
+          deleted_set.add((b12,f12))
+          deleted_set.add((db12,df12))
+
+        # b12 = sp.latex(sp.simplify(parse_latex(b1 + b2)))
+        # f12 = sp.latex(sp.simplify(parse_latex(f1 + f2)))
+        # b12 = b1+b2
+        # f12 = f1+f2
+        # deleted_set.add((b12,f12))
+  # print(deleted_set)
+
+  print(f"dif[2] = {dif[2]}")
+  print(f"deleted_set = {deleted_set}")
+
+#   dif[2][kz[0] + " " + kz[1]] = sp.latex(sp.simplify(parse_latex(kz[0] + " " + dif[2][kz[1]] + " + " + dif[2][kz[0]] + " " + kz[1])))
+
+
+
+
+
+  return result_grid
+
+
+def get_Er_term2(F,E,B, coe, r, B_gens, F_gens):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -367,31 +535,112 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
   conn.close()
 
   max_p, max_q = 20, 20  # グリッドサイズ
-  result_grid = [[[] for _ in range(max_q)] for _ in range(max_p)]
+  # result_grid2 = [[[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)] for _ in range(max_deg)]
 
-  # 1 ⊗ 1 = 1 を設定
-  result_grid[0][0].append("1")
+  result_grid = [[[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)] for _ in range(max_deg)]
+  result_grid[2][0][0].append("1")
 
   dels = get_deleted(F,E,B,coe)
+  dif = get_differential(F,E,B,coe)
+  kz = list(dif[2].keys())
+  dif[2][kz[0] + " " + kz[1]] = sp.latex(sp.simplify(parse_latex(kz[0] + " " + dif[2][kz[1]] + " + " + dif[2][kz[0]] + " " + kz[1])))
+  # print()
 
-  for p in range(max_p):
-    for q in range(max_q):
-      if (p,q) in dels[r]: continue
+  # print(dif[2])
+  
+  target_grid = get_target(B_gens,F_gens)
+
+  for p in range(max_deg+1):
+    for q in range(max_deg+1):
       B_list = B_gens[p] if p < len(B_gens) else []
       F_list = F_gens[q] if q < len(F_gens) else []
-
       for b in B_list:
         for f in F_list:
           if b == "1" and f == "1":
             continue  # すでに 1 を設定済み
           elif b == "1":
-            result_grid[p][q].append(f" {f}")  # 1 ⊗ f = f
+            result_grid[2][p][q].append(f"{f}")  # 1 ⊗ f = f
           elif f == "1":
-            result_grid[p][q].append(f"{b} ")  # b ⊗ 1 = b
+            result_grid[2][p][q].append(f"{b} ")  # b ⊗ 1 = b
           else:
-            result_grid[p][q].append(f"{b} \otimes {f}")  # 一般形 b ⊗ f
+            result_grid[2][p][q].append(f"{b} \otimes {f}")  # 一般形 b ⊗ f
+  # print(result_grid[2])
 
-  return result_grid
+  se = set()
+  # for p in range(max_deg-1):
+  #   for q in range(max_deg+1):
+  #     # ks = list(dif[2].keys())
+  #     for c1 in result_grid[2][p][q]:
+  #       # if c1 in se: continue
+  #       # print(f"c1 = {c1}")
+  #       c1 = c1.split(" \otimes ")
+  #       expr1 = parse_latex("".join(c1))
+  #       simplified_expr1 = sp.simplify(expr1)
+  #       s_latex1 = sp.latex(simplified_expr1)
+
+  #       if len(c1)>=2:
+  #         c2 = sp.latex(sp.simplify(parse_latex(c1[0] + dif[2][c1[1]])))
+  #       else:
+  #         c2 = sp.latex(sp.simplify(parse_latex(dif[2][c1[0]])))
+  #       # print(f"c1 = {c1}")
+
+  #       expr2 = parse_latex(c2)
+  #       simplified_expr2 = sp.simplify(expr2)
+  #       s_latex2 = sp.latex(simplified_expr2)
+  #       # print(f"s_latex1 = {s_latex1}")
+
+  #       if s_latex2 in target_grid[p+2][q-1]:
+  #         se.add(s_latex1)
+  #         se.add(s_latex2)
+
+  # print(se)
+  for p in range(max_deg+1):
+    for q in range(max_deg+1):
+      # ks = list(dif[2].keys())
+      for c1 in result_grid[2][p][q]:
+        c1_split = c1.split(" \otimes ")
+        expr1 = parse_latex("".join(c1_split))
+        simplified_expr1 = sp.simplify(expr1)
+        s_latex1 = sp.latex(simplified_expr1)
+
+        if s_latex1 in se: continue
+        result_grid[3][p][q].append(c1)
+
+
+  # print(result_grid[2][2])
+  # print(result_grid[3][2])
+  # li = result_grid[3][8][1][0].split(" \otimes ")
+  # print(li)
+  # expr = parse_latex(li[0] + dif[2][li[1]])
+  # # u_{1}, u_{3}, b_{2} = sp.symbols('u_{1} u_{3} b_{2}')
+  # simplified_expr = sp.simplify(expr)
+  # print(simplified_expr)
+  # s_latex = sp.latex(simplified_expr)
+  # print(s_latex)
+
+  # # 1 ⊗ 1 = 1 を設定
+  # result_grid2[r][0][0].append("1")
+
+
+  # for i in range(2,4):
+  #   for p in range(max_deg+1):
+  #     for q in range(max_deg+1):
+  #       if (p,q) in dels[i]: continue
+  #       B_list = B_gens[p] if p < len(B_gens) else []
+  #       F_list = F_gens[q] if q < len(F_gens) else []
+
+  #       for b in B_list:
+  #         for f in F_list:
+  #           if b == "1" and f == "1":
+  #             continue  # すでに 1 を設定済み
+  #           elif b == "1":
+  #             result_grid2[i][p][q].append(f"{f}")  # 1 ⊗ f = f
+  #           elif f == "1":
+  #             result_grid2[i][p][q].append(f"{b} ")  # b ⊗ 1 = b
+  #           else:
+  #             result_grid2[i][p][q].append(f"{b} \otimes {f}")  # 一般形 b ⊗ f
+
+  return result_grid[r]
 
 
 def get_reference(F, E, B, coefficient):
@@ -417,7 +666,7 @@ def index():
 
 
   r=request.form.get("r", "2")
-  tensor_product_grid = [[[] for _ in range(20)] for _ in range(20)]
+  tensor_product_grid = [[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)]
 
   r=int(r)
 
@@ -431,8 +680,27 @@ def index():
       B_gens = get_cohomology_structure(B,selected_coefficient,"B")
       F_gens = get_cohomology_structure(F,selected_coefficient,"F")
 
-      tensor_product_grid = get_Er_term(F,E,B, selected_coefficient, r, B_gens, F_gens)
+      tensor_product_grid = get_Er_term2(F,E,B, selected_coefficient, r, B_gens, F_gens)
 
+      # print(B_gens)
+
+  Er = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens)
+  print(Er[2][2])
+
+  # dif = get_differential(F,E,B,selected_coefficient)
+  # print(dif[2])
+  # E2 = tensor_product_grid[0]
+  # print(E2[4][0])
+  # E2_split = E2[4][0].split(" ")
+  # print(E2_split)
+  # d2_gen = dif[2][E2_split[0]] + E2_split[1] + "+" + E2_split[0] + dif[2][E2_split[1]]
+  # print(d2_gen)
+  # expr = parse_latex(d2_gen)
+  # ans = sp.simplify(expr)
+  # print(ans)
+  # print(sp.latex(ans))
+
+  # print(tensor_product_grid)
   # print(get_ideal(F,selected_coefficient,"F"))
   # print(get_ideal(E,selected_coefficient,"E"))
   # print(get_ideal(B,selected_coefficient,"B"))
@@ -451,3 +719,24 @@ def index():
 
 if __name__ == "__main__":
   app.run(debug=True)
+
+
+# [[['1'], [' u_{1}'], [], [' u_{3}'], [' u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2} '], ['b_{2} \\otimes u_{1}'], [], ['b_{2} \\otimes u_{3}'], ['b_{2} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2}^{2} ', 'b_{4} '], ['b_{2}^{2} \\otimes u_{1}', 'b_{4} \\otimes u_{1}'], [], ['b_{2}^{2} \\otimes u_{3}', 'b_{4} \\otimes u_{3}'], ['b_{2}^{2} \\otimes u_{1} u_{3}', 'b_{4} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2} b_{4} ', 'b_{2}^{3} '], ['b_{2} b_{4} \\otimes u_{1}', 'b_{2}^{3} \\otimes u_{1}'], [], ['b_{2} b_{4} \\otimes u_{3}', 'b_{2}^{3} \\otimes u_{3}'], ['b_{2} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{3} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2}^{2} b_{4} ', 'b_{2}^{4} ', 'b_{4}^{2} '], ['b_{2}^{2} b_{4} \\otimes u_{1}', 'b_{2}^{4} \\otimes u_{1}', 'b_{4}^{2} \\otimes u_{1}'], [], ['b_{2}^{2} b_{4} \\otimes u_{3}', 'b_{2}^{4} \\otimes u_{3}', 'b_{4}^{2} \\otimes u_{3}'], ['b_{2}^{2} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{4} \\otimes u_{1} u_{3}', 'b_{4}^{2} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2} b_{4}^{2} ', 'b_{2}^{3} b_{4} ', 'b_{2}^{5} '], ['b_{2} b_{4}^{2} \\otimes u_{1}', 'b_{2}^{3} b_{4} \\otimes u_{1}', 'b_{2}^{5} \\otimes u_{1}'], [], ['b_{2} b_{4}^{2} \\otimes u_{3}', 'b_{2}^{3} b_{4} \\otimes u_{3}', 'b_{2}^{5} \\otimes u_{3}'], ['b_{2} b_{4}^{2} \\otimes u_{1} u_{3}', 'b_{2}^{3} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{5} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2}^{2} b_{4}^{2} ', 'b_{2}^{4} b_{4} ', 'b_{2}^{6} ', 'b_{4}^{3} '], ['b_{2}^{2} b_{4}^{2} \\otimes u_{1}', 'b_{2}^{4} b_{4} \\otimes u_{1}', 'b_{2}^{6} \\otimes u_{1}', 'b_{4}^{3} \\otimes u_{1}'], [], ['b_{2}^{2} b_{4}^{2} \\otimes u_{3}', 'b_{2}^{4} b_{4} \\otimes u_{3}', 'b_{2}^{6} \\otimes u_{3}', 'b_{4}^{3} \\otimes u_{3}'], ['b_{2}^{2} b_{4}^{2} \\otimes u_{1} u_{3}', 'b_{2}^{4} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{6} \\otimes u_{1} u_{3}', 'b_{4}^{3} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2} b_{4}^{3} ', 'b_{2}^{3} b_{4}^{2} ', 'b_{2}^{5} b_{4} ', 'b_{2}^{7} '], ['b_{2} b_{4}^{3} \\otimes u_{1}', 'b_{2}^{3} b_{4}^{2} \\otimes u_{1}', 'b_{2}^{5} b_{4} \\otimes u_{1}', 'b_{2}^{7} \\otimes u_{1}'], [], ['b_{2} b_{4}^{3} \\otimes u_{3}', 'b_{2}^{3} b_{4}^{2} \\otimes u_{3}', 'b_{2}^{5} b_{4} \\otimes u_{3}', 'b_{2}^{7} \\otimes u_{3}'], ['b_{2} b_{4}^{3} \\otimes u_{1} u_{3}', 'b_{2}^{3} b_{4}^{2} \\otimes u_{1} u_{3}', 'b_{2}^{5} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{7} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2}^{2} b_{4}^{3} ', 'b_{2}^{4} b_{4}^{2} ', 'b_{2}^{6} b_{4} ', 'b_{2}^{8} ', 'b_{4}^{4} '], ['b_{2}^{2} b_{4}^{3} \\otimes u_{1}', 'b_{2}^{4} b_{4}^{2} \\otimes u_{1}', 'b_{2}^{6} b_{4} \\otimes u_{1}', 'b_{2}^{8} \\otimes u_{1}', 'b_{4}^{4} \\otimes u_{1}'], [], ['b_{2}^{2} b_{4}^{3} \\otimes u_{3}', 'b_{2}^{4} b_{4}^{2} \\otimes u_{3}', 'b_{2}^{6} b_{4} \\otimes u_{3}', 'b_{2}^{8} \\otimes u_{3}', 'b_{4}^{4} \\otimes u_{3}'], ['b_{2}^{2} b_{4}^{3} \\otimes u_{1} u_{3}', 'b_{2}^{4} b_{4}^{2} \\otimes u_{1} u_{3}', 'b_{2}^{6} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{8} \\otimes u_{1} u_{3}', 'b_{4}^{4} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 
+# [['b_{2} b_{4}^{4} ', 'b_{2}^{3} b_{4}^{3} ', 'b_{2}^{5} b_{4}^{2} ', 'b_{2}^{7} b_{4} ', 'b_{2}^{9} '], ['b_{2} b_{4}^{4} \\otimes u_{1}', 'b_{2}^{3} b_{4}^{3} \\otimes u_{1}', 'b_{2}^{5} b_{4}^{2} \\otimes u_{1}', 'b_{2}^{7} b_{4} \\otimes u_{1}', 'b_{2}^{9} \\otimes u_{1}'], [], ['b_{2} b_{4}^{4} \\otimes u_{3}', 'b_{2}^{3} b_{4}^{3} \\otimes u_{3}', 'b_{2}^{5} b_{4}^{2} \\otimes u_{3}', 'b_{2}^{7} b_{4} \\otimes u_{3}', 'b_{2}^{9} \\otimes u_{3}'], ['b_{2} b_{4}^{4} \\otimes u_{1} u_{3}', 'b_{2}^{3} b_{4}^{3} \\otimes u_{1} u_{3}', 'b_{2}^{5} b_{4}^{2} \\otimes u_{1} u_{3}', 'b_{2}^{7} b_{4} \\otimes u_{1} u_{3}', 'b_{2}^{9} \\otimes u_{1} u_{3}'], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]]
