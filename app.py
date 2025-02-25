@@ -445,6 +445,75 @@ def get_target(B_gens, F_gens):
 
   return target_grid
 
+def extract_gen_and_exp(s):
+  # 正規表現パターン：基本部分 (base) とオプションの上付き指数部分 (exponent)
+  pattern = r"^(.*?)(?:\^\{(.*?)\})?$"
+  match = re.match(pattern, s)
+  if match:
+    base = match.group(1)
+    exp = match.group(2)
+    if exp is None:
+      return (base, 1)
+    else:
+      try:
+        return (base, int(exp))
+      except ValueError:
+        return (base, exp)
+  return (s, 1)
+
+def str_to_exponent_map(x):
+  res = defaultdict(int)
+  split_x = x.split(' ')
+  exps = list(map(extract_gen_and_exp,split_x))
+  for s,e in exps:
+    res[s] = e
+  return res
+
+
+
+
+def latex_product(x,y):
+  if x == '0' or y == '0':
+    return '0'
+  if x == '1':
+    if y == '1':
+      return '1'
+    else:
+      return y
+  else:
+    if y == '1':
+      return x
+    else:
+      x_exp = str_to_exponent_map(x)
+      y_exp = str_to_exponent_map(y)
+      xy_exp = defaultdict(int)
+      for xi,exi in x_exp.items():
+        xy_exp[xi] += exi
+      for yi,eyi in y_exp.items():
+        xy_exp[yi] += eyi
+      xy_key = list(xy_exp.keys())
+      xy_key.sort()
+      res = []
+      for xyi in xy_key:
+        exyi = xy_exp[xyi]
+        if exyi == 1:
+          res.append(xyi)
+        else:
+          res.append(f"{xyi}^{{{exyi}}}")
+      return ' '.join(res)
+
+def latex_sum(x,y):
+  if x == '0':
+    if y == '0':
+      return '0'
+    else:
+      return y
+  else:
+    if y == '0':
+      return x
+    else:
+      return f"{x}+{y}"
+
 def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
@@ -476,13 +545,19 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
     result_grid[2][p][q].append(f"{b} \\otimes {f}")
 
   if r == 2:
-    return result_grid
+    return result_grid[2]
 
   deleted_set = set()
   dif = [defaultdict(lambda: ('0','0')) for _ in range(r)]
   for row in result:
-    dif[row["r"]][(str(row["gen1"]),str(row["gen2"]))] = (str(row["dgen1"]),str(row["dgen2"]))
+    if row["r"] < r:
+      dif[row["r"]][(str(row["gen1"]),str(row["gen2"]))] = (str(row["dgen1"]),str(row["dgen2"]))
   print(f"dif[2] = {dif[2]}")
+  ext = extract_gen_and_exp("u_{2}")
+  print(f"extract = {ext}")
+  exp_map = str_to_exponent_map("b_{2}^{4} b_{4}")
+  print(f"exp_map = {exp_map}")
+
 
   for i in range(2,r):
     non_sero_set[i] = set(non_zero_list[i])
@@ -496,33 +571,35 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
         # d2[(b1b2,f1f2)] = d2[(b1,f1)] (b2,f2) + (b1,f1) d2[(b2,f2)]
         db1,df1 = dif[i][(b1,f1)]
         db2,df2 = dif[i][(b2,f2)]
-        db12 = sp.latex(sp.simplify(parse_latex(db1 + '*' + b2 + '+' + b1 + '*' + db2)))
-        df12 = sp.latex(sp.simplify(parse_latex(df1 + '*' + f2 + '+' + f1 + '*' + df2)))
-        # deleted_set.add((db12,df12))
-        if (db12,df12) in non_sero_set[i]:
-          b12 = sp.latex(sp.simplify(parse_latex(b1 + '*' + b2)))
-          f12 = sp.latex(sp.simplify(parse_latex(f1 + '*' + f2)))
+        db12 = latex_sum(latex_product(db1,b2), latex_product(b1,db2))
+        df12 = latex_sum(latex_product(df1,f2), latex_product(f1,df2))
+        # db12 = sp.latex(sp.simplify(parse_latex(db1 + '*' + b2 + '+' + b1 + '*' + db2)))
+        # df12 = sp.latex(sp.simplify(parse_latex(df1 + '*' + f2 + '+' + f1 + '*' + df2)))
+        b12 = latex_product(b1,b2)
+        f12 = latex_product(f1,f2)
+
+        if (db12,df12) in non_sero_set[i] and (db12,df12) != ('0','0'):
+          # b12 = sp.latex(sp.simplify(parse_latex(b1 + '*' + b2)))
+          # f12 = sp.latex(sp.simplify(parse_latex(f1 + '*' + f2)))
           dif[i][(b12,f12)] = (db12,df12)
           deleted_set.add((b12,f12))
           deleted_set.add((db12,df12))
+        # else:
+        #   non_zero_list[i+1].append((b12,f12))
+    # non_zero_list[i+1] = list(set(non_zero_list[i+1]))
 
-        # b12 = sp.latex(sp.simplify(parse_latex(b1 + b2)))
-        # f12 = sp.latex(sp.simplify(parse_latex(f1 + f2)))
-        # b12 = b1+b2
-        # f12 = f1+f2
-        # deleted_set.add((b12,f12))
-  # print(deleted_set)
+    for b,f in non_zero_list[i]:
+      if (b,f) in deleted_set: continue
+      p,q = degree[(b,f)]
+      result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
+      non_zero_list[i+1].append((b,f))
 
   print(f"dif[2] = {dif[2]}")
   print(f"deleted_set = {deleted_set}")
 
-#   dif[2][kz[0] + " " + kz[1]] = sp.latex(sp.simplify(parse_latex(kz[0] + " " + dif[2][kz[1]] + " + " + dif[2][kz[0]] + " " + kz[1])))
 
 
-
-
-
-  return result_grid
+  return result_grid[r]
 
 
 def get_Er_term2(F,E,B, coe, r, B_gens, F_gens):
@@ -680,12 +757,12 @@ def index():
       B_gens = get_cohomology_structure(B,selected_coefficient,"B")
       F_gens = get_cohomology_structure(F,selected_coefficient,"F")
 
-      tensor_product_grid = get_Er_term2(F,E,B, selected_coefficient, r, B_gens, F_gens)
+      # tensor_product_grid = get_Er_term2(F,E,B, selected_coefficient, r, B_gens, F_gens)
 
       # print(B_gens)
 
-  Er = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens)
-  print(Er[2][2])
+      tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens)
+  # print(Er[2][2])
 
   # dif = get_differential(F,E,B,selected_coefficient)
   # print(dif[2])
