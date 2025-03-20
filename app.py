@@ -515,89 +515,87 @@ def latex_sum(x,y):
       return f"{x}+{y}"
 
 def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
+# SQLiteデータベースに接続し、微分情報を取得
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  # cursor.execute("SELECT r,kill FROM fibration WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
-  # result = cursor.fetchone()
-  cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2 FROM differential2 WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+  cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2 FROM differential2 WHERE F=? AND E=? AND B=? AND coe= ?", (F,E,B, coe))
   result = cursor.fetchall()
-
   conn.commit()
   conn.close()
 
+# 各生成元の次数 (p, q) を格納する辞書
   degree = defaultdict(lambda: (0,0))
+  
+# 非ゼロ要素を格納するリストとセット
   non_zero_list = [[] for _ in range(r+1)]
-  non_sero_set = [set() for _ in range(r+1)]
+  non_zero_set = [set() for _ in range(r+1)]
+
+# E_2-termの初期設定（B_gens と F_gens の直積を考える）
   for p in range(max_deg):
     for q in range(max_deg):
       for b in B_gens[p]:
         for f in F_gens[q]:
           degree[(b,f)] = (p,q)
           non_zero_list[2].append((b,f))
-  # print(degree)
-  # print(f"non_zero_list = {non_zero_list[2]}")
 
-  result_grid = [[[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)] for _ in range(max_deg)]
+# スペクトル系列の結果を格納する3次元リスト
+  result_grid = [[[[] for _ in range(max_deg+1)] \
+                  for _ in range(max_deg+1)] for _ in range(max_deg)]
 
+# E_2 のグリッドを設定
   for b,f in non_zero_list[2]:
     p,q = degree[(b,f)]
     result_grid[2][p][q].append(f"{b} \\otimes {f}")
 
+# r = 2 の場合、E_2-term をそのまま返す
   if r == 2:
     return result_grid[2]
 
+# 消滅する要素を管理するセットと微分辞書を初期化
   deleted_set = set()
-  dif = [defaultdict(lambda: ('0','0')) for _ in range(r)]
+  dif = [defaultdict(lambda: (0,'0','0')) for _ in range(r)]
+
+# 取得したデータから微分を辞書に格納
   for row in result:
     if row["r"] < r:
-      dif[row["r"]][(str(row["gen1"]),str(row["gen2"]))] = (str(row["dgen1"]),str(row["dgen2"]))
-  print(f"dif[2] = {dif[2]}")
-  ext = extract_gen_and_exp("u_{2}")
-  print(f"extract = {ext}")
-  exp_map = str_to_exponent_map("b_{2}^{4} b_{4}")
-  print(f"exp_map = {exp_map}")
+      dif[row["r"]][(str(row["gen1"]),str(row["gen2"]))] \
+        = (1,str(row["dgen1"]),str(row["dgen2"]))
 
-
+# E_r-term を計算
   for i in range(2,r):
-    non_sero_set[i] = set(non_zero_list[i])
+    non_zero_set[i] = set(non_zero_list[i])
+    
+# 微分による削除処理
     for (b1,f1) in non_zero_list[i]:
       p1,q1 = degree[(b1,f1)]
       for (b2,f2) in non_zero_list[i]:
         p2,q2 = degree[(b2,f2)]
-        if p1+p2+i>=max_deg:
-          continue
-          # break
-        # d2[(b1b2,f1f2)] = d2[(b1,f1)] (b2,f2) + (b1,f1) d2[(b2,f2)]
-        db1,df1 = dif[i][(b1,f1)]
-        db2,df2 = dif[i][(b2,f2)]
+        if p1+p2+i >= max_deg:
+          continue  # 次数が範囲外の場合はスキップ
+
+# d_r の積を計算
+        _,db1,df1 = dif[i][(b1,f1)]
+        _,db2,df2 = dif[i][(b2,f2)]
         db12 = latex_sum(latex_product(db1,b2), latex_product(b1,db2))
         df12 = latex_sum(latex_product(df1,f2), latex_product(f1,df2))
-        # db12 = sp.latex(sp.simplify(parse_latex(db1 + '*' + b2 + '+' + b1 + '*' + db2)))
-        # df12 = sp.latex(sp.simplify(parse_latex(df1 + '*' + f2 + '+' + f1 + '*' + df2)))
         b12 = latex_product(b1,b2)
         f12 = latex_product(f1,f2)
 
-        if (db12,df12) in non_sero_set[i] and (db12,df12) != ('0','0'):
-          # b12 = sp.latex(sp.simplify(parse_latex(b1 + '*' + b2)))
-          # f12 = sp.latex(sp.simplify(parse_latex(f1 + '*' + f2)))
-          dif[i][(b12,f12)] = (db12,df12)
+
+# d_r 微分の結果が非ゼロなら削除対象に追加
+        if (db12,df12) in non_zero_set[i] and (db12,df12) != ('0','0'):
+          dif[i][(b12,f12)] = (1,db12,df12)
           deleted_set.add((b12,f12))
           deleted_set.add((db12,df12))
-        # else:
-        #   non_zero_list[i+1].append((b12,f12))
-    # non_zero_list[i+1] = list(set(non_zero_list[i+1]))
-
+    
+# 削除されなかった要素を E_(r+1)-term に格納
     for b,f in non_zero_list[i]:
-      if (b,f) in deleted_set: continue
+      if (b,f) in deleted_set:
+        continue
       p,q = degree[(b,f)]
       result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
       non_zero_list[i+1].append((b,f))
-
-  print(f"dif[2] = {dif[2]}")
-  print(f"deleted_set = {deleted_set}")
-
-
 
   return result_grid[r]
 
