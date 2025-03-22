@@ -469,7 +469,6 @@ def str_to_exponent_map(x):
     res[s] = e
   return res
 
-
 def latex_product(x,y):
   if x == '0' or y == '0':
     return '0'
@@ -508,7 +507,6 @@ def get_tensor_tex(x):
     return f"{b} \otimes {f}"
   return f"{c} ({b} \otimes {f})"
 
-
 def latex_sum(x,y):
   c1,b1,f1=x
   c2,b2,f2=y
@@ -525,18 +523,6 @@ def latex_sum(x,y):
     else:
       return x
 
-
-def latex_sum2(x,y):
-  if x == '0':
-    if y == '0':
-      return '0'
-    else:
-      return y
-  else:
-    if y == '0':
-      return x
-    else:
-      return f"{x}+{y}"
 
 def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
 # SQLiteデータベースに接続し、微分情報を取得
@@ -588,8 +574,10 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
 
 # E_r-term を計算
   for i in range(2,r):
+    # print(f"non_zero_list[{i}] = {non_zero_list[i]}")
+
     non_zero_set[i] = set(non_zero_list[i])
-    
+    # print(f"non_zero_set[{i}] = {non_zero_set[i]}")
 # 微分による削除処理
     for (b1,f1) in non_zero_list[i]:
       p1,q1 = degree[(b1,f1)]
@@ -601,31 +589,28 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
 # d_r の積を計算
         c1,db1,df1 = dif[i][(b1,f1)]
         c2,db2,df2 = dif[i][(b2,f2)]
-        # db12 = latex_sum2(latex_product(db1,b2), latex_product(b1,db2))
-        # df12 = latex_sum2(latex_product(df1,f2), latex_product(f1,df2))
         b12 = latex_product(b1,b2)
         f12 = latex_product(f1,f2)
-
+        if (b12,f12) not in non_zero_set[i]: continue
         (c12,bd12,fd12) = latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2)))
-        # if latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2))) != '0':
-        # if '+' in latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2))):
-        # print(f"coe = {coe}")
         if coe!='0' and coe!='1':
           c12 %= int(coe)
-        # # if c12 != 0:
-        # print(f"latex_sum = {c12,bd12,fd12}, {c12}")
+        if coe=='1' and c12==-1:
+          c12=1
+
+        # if c12!=0:
+        #   print(f"{b12}.{f12}, {c12}({bd12}.{fd12})")
+
 
 # d_r 微分の結果が非ゼロなら削除対象に追加
         if c12!=0 and (bd12,fd12) in non_zero_set[i] and (bd12,fd12) != ('0','0'):
           dif[i][(b12,f12)] = (c12,bd12,fd12)
           deleted_set.add((b12,f12))
-          deleted_set.add((bd12,fd12))
-
-        # if (db12,df12) in non_zero_set[i] and (db12,df12) != ('0','0'):
-        #   dif[i][(b12,f12)] = (1,db12,df12)
-        #   deleted_set.add((b12,f12))
-        #   deleted_set.add((db12,df12))
-    
+          if coe!='1' or (coe=='1' and c12==1):
+            deleted_set.add((bd12,fd12))
+          # if "^" in f12:
+          print((b12,f12), c12,(bd12,fd12))
+      # print(f"deleted_set = {deleted_set}")
 # 削除されなかった要素を E_(r+1)-term に格納
     for b,f in non_zero_list[i]:
       if (b,f) in deleted_set:
