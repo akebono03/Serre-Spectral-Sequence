@@ -470,8 +470,6 @@ def str_to_exponent_map(x):
   return res
 
 
-
-
 def latex_product(x,y):
   if x == '0' or y == '0':
     return '0'
@@ -502,7 +500,33 @@ def latex_product(x,y):
           res.append(f"{xyi}^{{{exyi}}}")
       return ' '.join(res)
 
+def get_tensor_tex(x):
+  c,b,f=x
+  if c==0 or b=='0' or f=='0':
+    return '0'
+  if c==1:
+    return f"{b} \otimes {f}"
+  return f"{c} ({b} \otimes {f})"
+
+
 def latex_sum(x,y):
+  c1,b1,f1=x
+  c2,b2,f2=y
+  if c1==0 or b1=='0' or f1=='0':
+    if c2==0 or b2=='0' or f2=='0':
+      return (0,'0','0')
+    else:
+      return y
+  else:
+    if c2==0 or b2=='0' or f2=='0':
+      return x
+    elif b1==b2 and f1==f2:
+      return (c1+c2,b1,f1)
+    else:
+      return x
+
+
+def latex_sum2(x,y):
   if x == '0':
     if y == '0':
       return '0'
@@ -528,7 +552,7 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
   degree = defaultdict(lambda: (0,0))
   
 # 非ゼロ要素を格納するリストとセット
-  non_zero_list = [[] for _ in range(r+1)]
+  non_zero_list = [[] for _ in range(r+1)] 
   non_zero_set = [set() for _ in range(r+1)]
 
 # E_2-termの初期設定（B_gens と F_gens の直積を考える）
@@ -575,13 +599,15 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
           continue  # 次数が範囲外の場合はスキップ
 
 # d_r の積を計算
-        _,db1,df1 = dif[i][(b1,f1)]
-        _,db2,df2 = dif[i][(b2,f2)]
-        db12 = latex_sum(latex_product(db1,b2), latex_product(b1,db2))
-        df12 = latex_sum(latex_product(df1,f2), latex_product(f1,df2))
+        c1,db1,df1 = dif[i][(b1,f1)]
+        c2,db2,df2 = dif[i][(b2,f2)]
+        db12 = latex_sum2(latex_product(db1,b2), latex_product(b1,db2))
+        df12 = latex_sum2(latex_product(df1,f2), latex_product(f1,df2))
         b12 = latex_product(b1,b2)
         f12 = latex_product(f1,f2)
-
+        # if latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2))) != '0':
+        # if '+' in latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2))):
+        print(f"latex_sum = {latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2)))}")
 
 # d_r 微分の結果が非ゼロなら削除対象に追加
         if (db12,df12) in non_zero_set[i] and (db12,df12) != ('0','0'):
