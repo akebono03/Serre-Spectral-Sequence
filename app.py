@@ -700,6 +700,7 @@ def index():
   selected_fibration = None
   selected_coefficient = "1"
   cohomologies = None
+  symbol_dic = {}
 
   F,E,B="SU(3)","SU(4)","S^{7}" # 初期値
   cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), {})
@@ -733,19 +734,19 @@ def index():
       symbol_dic = {}
       for row in result2:
         symbol_dic[row['element']] = row['symbol']
-      print(f"symbol_dic = {symbol_dic}")
+      # print(f"symbol_dic = {symbol_dic}")
 
 
       cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), symbol_dic)
       B_gens = get_cohomology_structure(B,selected_coefficient,"B",symbol_dic)
       F_gens = get_cohomology_structure(F,selected_coefficient,"F",symbol_dic)
 
-      print(f"cohomologies = {cohomologies}")
+      # print(f"cohomologies = {cohomologies}")
 
 
       tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens,symbol_dic)
 
-  print(f"B_gens = {B_gens}")
+  # print(f"B_gens = {B_gens}")
 
 
   E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic)
