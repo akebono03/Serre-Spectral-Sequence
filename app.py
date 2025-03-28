@@ -17,6 +17,7 @@ df_ideal = pd.read_csv("ideal.csv").dropna()
 df_reference = pd.read_csv("reference.csv").dropna()
 df_differential = pd.read_csv("differential.csv").dropna()
 df_differential2 = pd.read_csv("differential2.csv").dropna()
+df_element_symbol = pd.read_csv("element_symbol.csv")
 
 # SQLiteデータベースに接続
 conn = sqlite3.connect("cohomology.db", check_same_thread=False)
@@ -103,6 +104,19 @@ CREATE TABLE IF NOT EXISTS differential2 (
 """)
 df_differential2.to_sql("differential2", conn, if_exists="replace", index=False)
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS element_symbol (
+  F TEXT,
+  E TEXT,
+  B TEXT,
+  coe INTEGER,
+  r INTEGER,
+  element TEXT,
+  symbol TEXT
+)
+""")
+df_element_symbol.to_sql("element_symbol", conn, if_exists="replace", index=False)
+
 conn.commit()
 conn.close()
 
@@ -125,7 +139,7 @@ def smart_split(selected_fibration):
   s=''.join(s)
   return s.split('.')
 
-def get_generator_list(space, coefficient, space_type):
+def get_generator_list(space, coefficient, space_type, symbol_dic):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -156,9 +170,13 @@ def get_generator_list(space, coefficient, space_type):
 
   for deg in range(max_deg+1):
     if len(id_list[deg])==0: continue
-    x = {"B":("b","a"), "E":("y","x"), "F":("v","u")}[space_type][deg%2]
+    coefficient=int(coefficient)
+    x = {"B":("b","a"), "E":("y","x"), "F":("v","u")}[space_type][deg%2 if coefficient!=2 else 0]
     if len(id_list[deg])==1:
       gen = x if deg_only_one else f"{x}_{{{deg}}}"
+      # for element,symbol in symbol_dic.items():
+      #   gen = gen.replace(element, symbol)
+
       gen_list.append(gen)
       gen_deg[gen] = deg
       _, nil_exp, order = id_list[deg][0]
@@ -167,6 +185,9 @@ def get_generator_list(space, coefficient, space_type):
     else:
       for id, nil_exp, order in id_list[deg]:
         gen = f"{x}_{{{id}}}" if deg_only_one else x + "_{" + str(deg) + "," + str(id) + "}"
+        # for element,symbol in symbol_dic.items():
+        #   gen = gen.replace(element, symbol)        
+        
         gen_list.append(gen)
         gen_deg[gen] = deg
         gen_order[gen] = order
@@ -175,7 +196,7 @@ def get_generator_list(space, coefficient, space_type):
   return gen_list, gen_deg, gen_order, gen_nil, is_except
 
 
-def get_cohomology_structure(space, coefficient, space_type):
+def get_cohomology_structure(space, coefficient, space_type, symbol_dic):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -191,7 +212,7 @@ def get_cohomology_structure(space, coefficient, space_type):
   odd_generators=[]
   even_generators=[]
 
-  gen_list, gen_deg, _, gen_nil, is_except = get_generator_list(space, coefficient, space_type)
+  gen_list, gen_deg, _, gen_nil, is_except = get_generator_list(space, coefficient, space_type, symbol_dic)
 
   # 例外の場合
   if is_except:
@@ -202,7 +223,7 @@ def get_cohomology_structure(space, coefficient, space_type):
 
   # 通常の場合
   for gen in gen_list:
-    if gen_deg[gen]%2 == 1:
+    if gen_deg[gen]%2 == 1 and coefficient!="2":
       odd_generators.append(gen)
     else:
       even_generators.append(gen)
@@ -236,6 +257,8 @@ def get_cohomology_structure(space, coefficient, space_type):
     if deg <= max_deg:
       result_list[deg] = gens
 
+  # print(f"result_list = {result_list}")
+
   result_list[0]=['1'] # 必要
   return result_list
 
@@ -267,7 +290,7 @@ def get_ideal(space, coefficient, space_type):
 
 
 # コホモロジー環の係数と環構造を取得する関数
-def get_cohomology_tex(space, coefficient, space_type):
+def get_cohomology_tex(space, coefficient, space_type, symbol_dic):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -289,7 +312,7 @@ def get_cohomology_tex(space, coefficient, space_type):
   if space == '*':
     return coe_tex, coe_tex
 
-  gen_list, gen_deg, gen_order, _, is_except = get_generator_list(space, coefficient, space_type)
+  gen_list, gen_deg, gen_order, _, is_except = get_generator_list(space, coefficient, space_type, symbol_dic)
 
   # 例外の場合
   if is_except:
@@ -310,7 +333,7 @@ def get_cohomology_tex(space, coefficient, space_type):
   terms = []
 
   for gen in gen_list:
-    if gen_deg[gen]%2 == 1:
+    if gen_deg[gen]%2 == 1 and coefficient!=2:
       odd_generators.append(gen)
     else:
       even_generators.append(gen)
@@ -340,7 +363,7 @@ def get_fibrations():
   return fibrations
 
 # ファイブレーションに対応するコホモロジー環と E_2-term を取得
-def get_fibration_cohomology(fibration,coefficient):
+def get_fibration_cohomology(fibration,coefficient,symbol_dic):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -350,11 +373,16 @@ def get_fibration_cohomology(fibration,coefficient):
   conn.close()
 
   if result:
-    f_coe, f_cohomology = get_cohomology_tex(result["F"],coefficient,"F")
-    e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient,"E")
-    b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient,"B")
+    f_coe, f_cohomology = get_cohomology_tex(result["F"],coefficient,"F",symbol_dic)
+    e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient,"E",symbol_dic)
+    b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient,"B",symbol_dic)
 
     E2_tex = rf"{b_cohomology} \otimes {f_cohomology}"
+
+    for element,symbol in symbol_dic.items():
+      f_cohomology = f_cohomology.replace(element, symbol)
+      e_cohomology = e_cohomology.replace(element, symbol)
+      b_cohomology = b_cohomology.replace(element, symbol)
 
     return {
       "E2": E2_tex,
@@ -522,15 +550,27 @@ def latex_sum(x,y):
       return x
 
 
-def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
+def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
 # SQLiteデータベースに接続し、微分情報を取得
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
   cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2 FROM differential2 WHERE F=? AND E=? AND B=? AND coe= ?", (F,E,B, coe))
   result = cursor.fetchall()
+
+  cursor = conn.cursor()
+  cursor.execute("SELECT element,symbol FROM element_symbol WHERE F=? AND E=? AND B=? AND coe= ?", (F,E,B, coe))
+  result2 = cursor.fetchall()
+
   conn.commit()
   conn.close()
+
+  # symbol_dic = {}
+  # for row in result2:
+  #   symbol_dic[row['element']] = row['symbol']
+  # print(f"symbol_dic = {symbol_dic}")
+  # for element,symbol in symbol_dic.items():
+  #   print(element, symbol)
 
 # 各生成元の次数 (p, q) を格納する辞書
   degree = defaultdict(lambda: (0,0))
@@ -544,8 +584,13 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
     for q in range(max_deg):
       for b in B_gens[p]:
         for f in F_gens[q]:
+          # for element,symbol in symbol_dic.items():
+          #   b = b.replace(element, symbol)
+          #   f = f.replace(element, symbol)
           degree[(b,f)] = (p,q)
           non_zero_list[2].append((b,f))
+
+  # print(non_zero_list[2])
 
 # スペクトル系列の結果を格納する3次元リスト
   result_grid = [[[[] for _ in range(max_deg+1)] \
@@ -554,7 +599,13 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
 # E_2 のグリッドを設定
   for b,f in non_zero_list[2]:
     p,q = degree[(b,f)]
-    result_grid[2][p][q].append(f"{b} \\otimes {f}")
+    bf = f"{b} \\otimes {f}"
+    if b=='1':
+      bf = f
+    elif f=='1':
+      bf = b
+    result_grid[2][p][q].append(bf)
+  # print(result_grid[2])
 
 # r = 2 の場合、E_2-term をそのまま返す
   if r == 2:
@@ -567,8 +618,18 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
 # 取得したデータから微分を辞書に格納
   for row in result:
     if row["r"] < r:
-      dif[row["r"]][(str(row["gen1"]),str(row["gen2"]))] \
-        = (1,str(row["dgen1"]),str(row["dgen2"]))
+      b = str(row["gen1"])
+      f = str(row["gen2"])
+      bd = str(row["dgen1"])
+      fd = str(row["dgen2"])
+
+      # for element,symbol in symbol_dic.items():
+      #   b = b.replace(element, symbol)        
+      #   f = f.replace(element, symbol)
+      #   bd = bd.replace(element, symbol)        
+      #   fd = fd.replace(element, symbol)
+
+      dif[row["r"]][(b,f)] = (1,bd,fd)
 
 # E_r-term を計算
   for i in range(2,r):
@@ -600,15 +661,26 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens):
           if coe!='1' or (coe=='1' and c12==1):
             deleted_set.add((bd12,fd12))
           # if "^" in f12:
-          print((b12,f12), c12,(bd12,fd12))
+          # print((b12,f12), c12,(bd12,fd12))
       # print(f"deleted_set = {deleted_set}")
 # 削除されなかった要素を E_(r+1)-term に格納
     for b,f in non_zero_list[i]:
       if (b,f) in deleted_set:
         continue
       p,q = degree[(b,f)]
-      result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
       non_zero_list[i+1].append((b,f))
+      bf = f"{b} \\otimes {f}"
+      if b=='1':
+        bf = f
+      elif f=='1':
+        bf = b
+      result_grid[i+1][p][q].append(bf)
+      # result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
+
+      # for element,symbol in symbol_dic.items():
+      #   b = b.replace()
+      # b = b.translate(str.maketrans(symbol_dic))
+      # result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
 
   return result_grid[r]
 
@@ -630,9 +702,9 @@ def index():
   cohomologies = None
 
   F,E,B="SU(3)","SU(4)","S^{7}" # 初期値
-  cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
-  B_gens = get_cohomology_structure(B,selected_coefficient,"B")
-  F_gens = get_cohomology_structure(F,selected_coefficient,"F")
+  cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), {})
+  B_gens = get_cohomology_structure(B,selected_coefficient,"B",{})
+  F_gens = get_cohomology_structure(F,selected_coefficient,"F",{})
 
   r=request.form.get("r", "2")
   tensor_product_grid = [[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)]
@@ -649,13 +721,34 @@ def index():
     
     if selected_fibration:
       F,E,B = smart_split(selected_fibration)
-      cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient))
-      B_gens = get_cohomology_structure(B,selected_coefficient,"B")
-      F_gens = get_cohomology_structure(F,selected_coefficient,"F")
 
-      tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens)
+      conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+      conn.row_factory = sqlite3.Row
+      cursor = conn.cursor()
+      cursor.execute("SELECT element,symbol FROM element_symbol WHERE F=? AND E=? AND B=? AND coe= ?", (F,E,B, selected_coefficient))
+      result2 = cursor.fetchall()
+      conn.commit()
+      conn.close()
 
-  E_gens = get_cohomology_structure(E, selected_coefficient, "E")
+      symbol_dic = {}
+      for row in result2:
+        symbol_dic[row['element']] = row['symbol']
+      print(f"symbol_dic = {symbol_dic}")
+
+
+      cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), symbol_dic)
+      B_gens = get_cohomology_structure(B,selected_coefficient,"B",symbol_dic)
+      F_gens = get_cohomology_structure(F,selected_coefficient,"F",symbol_dic)
+
+      print(f"cohomologies = {cohomologies}")
+
+
+      tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens,symbol_dic)
+
+  print(f"B_gens = {B_gens}")
+
+
+  E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic)
   reference = get_reference(F,E,B,selected_coefficient)
 
   return render_template("index.html", fibrations=fibrations \
