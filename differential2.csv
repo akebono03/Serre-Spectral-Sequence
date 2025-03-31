@@ -25,4 +25,10 @@ RP^{7},BG_{2},BSO(7),2,2,1,v,b_{2},1
 RP^{7},BG_{2},BSO(7),2,3,1,v^{2},b_{3},1
 RP^{7},BG_{2},BSO(7),2,5,1,v^{4},b_{5},1
 
+CP^{\infty},F_{4}\langle3\rangle,F_{4},3,3,1,v,a_{3},1
+CP^{\infty},F_{4}\langle3\rangle,F_{4},3,5,a_{3},v^{2},b_{8},1
+CP^{\infty},F_{4}\langle3\rangle,F_{4},3,7,1,v^{3},a_{7},1
+
+Spin(9),F_{4},F_{4}/Spin(9),2,8,1,v_{7},b,1
+
 
