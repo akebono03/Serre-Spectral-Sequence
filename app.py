@@ -156,7 +156,8 @@ def get_generator_list(space, coefficient, space_type, symbol_dic):
 
   for row in results:
     gen_type, deg, id, nil_exp, order = int(row["gen_type"]), int(row["deg"]), int(row["id"]), int(row["nil_exp"]), int(row["g_order"])
-    id_list[deg].append((id,nil_exp,order))
+    if deg<=max_deg:
+      id_list[deg].append((id,nil_exp,order))
     if gen_type == 5:
       is_except = True
 
@@ -681,6 +682,8 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
       #   b = b.replace()
       # b = b.translate(str.maketrans(symbol_dic))
       # result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
+
+  print(dif[r-1])
 
   return result_grid[r]
 
