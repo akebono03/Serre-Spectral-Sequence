@@ -124,6 +124,10 @@ print("CSVデータをSQLiteにインポートしました。")
 
 max_deg = 20
 
+def sort_key(s):
+  # 数字をすべて探して最初のものをキーにする
+  nums = re.findall(r'\d+', s)
+  return int(nums[0]) if nums else float('inf')
 
 def smart_split(selected_fibration):
   s=list(selected_fibration)
@@ -516,7 +520,7 @@ def latex_product(x,y):
       for yi,eyi in y_exp.items():
         xy_exp[yi] += eyi
       xy_key = list(xy_exp.keys())
-      xy_key.sort()
+      xy_key.sort(key=sort_key)
       res = []
       for xyi in xy_key:
         exyi = xy_exp[xyi]
@@ -650,6 +654,9 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
         f12 = latex_product(f1,f2)
         if (b12,f12) not in non_zero_set[i]: continue
         (c12,bd12,fd12) = latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2)))
+        # if latex_product(db1,b2)[0]!='0':
+        #   print(latex_product(db1,b2),latex_product(df1,f2),latex_product(b1,db2),latex_product(f1,df2))
+
         if coe!='0' and coe!='1':
           c12 %= int(coe)
         if coe=='1' and c12==-1:
@@ -683,7 +690,7 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
       # b = b.translate(str.maketrans(symbol_dic))
       # result_grid[i+1][p][q].append(f"{b} \\otimes {f}")
 
-  print(dif[r-1])
+  # print(dif[r-1])
 
   return result_grid[r]
 
