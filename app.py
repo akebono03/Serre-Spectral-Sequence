@@ -125,9 +125,10 @@ print("CSVデータをSQLiteにインポートしました。")
 max_deg = 20
 
 def sort_key(s):
-  # 数字をすべて探して最初のものをキーにする
-  nums = re.findall(r'\d+', s)
-  return int(nums[0]) if nums else float('inf')
+  # アルファベット部分と数字部分を抽出
+  alpha = re.search(r'[a-zA-Z]+', s)
+  num = re.search(r'\d+', s)
+  return (alpha.group() if alpha else '', int(num.group()) if num else float('inf'))
 
 def smart_split(selected_fibration):
   s=list(selected_fibration)
@@ -655,7 +656,8 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
         if (b12,f12) not in non_zero_set[i]: continue
         (c12,bd12,fd12) = latex_sum((c1,latex_product(db1,b2),latex_product(df1,f2)), ((-1)**(p1+q1)*c2,latex_product(b1,db2),latex_product(f1,df2)))
         # if latex_product(db1,b2)[0]!='0':
-        #   print(latex_product(db1,b2),latex_product(df1,f2),latex_product(b1,db2),latex_product(f1,df2))
+        if (b1,f1)==('a_{3}','v^{2}'):
+          print(latex_product(db1,b2),latex_product(df1,f2),latex_product(b1,db2),latex_product(f1,df2))
 
         if coe!='0' and coe!='1':
           c12 %= int(coe)
