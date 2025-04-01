@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS differential2 (
   gen1 TEXT,
   gen2 TEXT,
   dgen1 TEXT,
-  dgen2 TEXT
+  dgen2 TEXT,
+  scalar INTEGER
 )
 """)
 df_differential2.to_sql("differential2", conn, if_exists="replace", index=False)
@@ -563,7 +564,7 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
-  cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2 FROM differential2 WHERE F=? AND E=? AND B=? AND coe= ?", (F,E,B, coe))
+  cursor.execute("SELECT r,gen1,gen2,dgen1,dgen2,scalar FROM differential2 WHERE F=? AND E=? AND B=? AND coe= ?", (F,E,B, coe))
   result = cursor.fetchall()
 
   cursor = conn.cursor()
@@ -631,6 +632,7 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
       f = str(row["gen2"])
       bd = str(row["dgen1"])
       fd = str(row["dgen2"])
+      sc = int(row["scalar"])
 
       # for element,symbol in symbol_dic.items():
       #   b = b.replace(element, symbol)        
@@ -638,7 +640,7 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
       #   bd = bd.replace(element, symbol)        
       #   fd = fd.replace(element, symbol)
 
-      dif[row["r"]][(b,f)] = (1,bd,fd)
+      dif[row["r"]][(b,f)] = (sc,bd,fd)
 
 # E_r-term を計算
   for i in range(2,r):
