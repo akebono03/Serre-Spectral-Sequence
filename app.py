@@ -536,8 +536,10 @@ def get_tensor_tex(x):
   if c==0 or b=='0' or f=='0':
     return '0'
   if c==1:
-    return f"{b} \otimes {f}"
-  return f"{c} ({b} \otimes {f})"
+    # return f"{b} \otimes {f}"
+    return f"{b} {f}"
+  # return f"{c} ({b} \otimes {f})"
+  return f"{c} {b} {f}"
 
 def latex_sum(x,y):
   c1,b1,f1=x
@@ -605,7 +607,8 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
 # E_2 のグリッドを設定
   for b,f in non_zero_list[2]:
     p,q = degree[(b,f)]
-    bf = f"{b} \\otimes {f}"
+    # bf = f"{b} \\otimes {f}"
+    bf = f"{b} {f}"
     if b=='1':
       bf = f
     elif f=='1':
@@ -679,7 +682,8 @@ def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
         continue
       p,q = degree[(b,f)]
       non_zero_list[i+1].append((b,f))
-      bf = f"{b} \\otimes {f}"
+      # bf = f"{b} \\otimes {f}"
+      bf = f"{b} {f}"
       if b=='1':
         bf = f
       elif f=='1':
