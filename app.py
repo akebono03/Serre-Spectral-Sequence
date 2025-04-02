@@ -384,12 +384,12 @@ def get_fibration_cohomology(fibration,coefficient,symbol_dic):
     e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient,"E",symbol_dic)
     b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient,"B",symbol_dic)
 
-    E2_tex = rf"{b_cohomology} \otimes {f_cohomology}"
-
     for element,symbol in symbol_dic.items():
       f_cohomology = f_cohomology.replace(element, symbol)
       e_cohomology = e_cohomology.replace(element, symbol)
       b_cohomology = b_cohomology.replace(element, symbol)
+
+    E2_tex = rf"{b_cohomology} \otimes {f_cohomology}"
 
     return {
       "E2": E2_tex,
@@ -765,7 +765,7 @@ def index():
       tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens,symbol_dic)
 
   # print(f"B_gens = {B_gens}")
-
+  # print(cohomologies)
 
   E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic)
   reference = get_reference(F,E,B,selected_coefficient)
