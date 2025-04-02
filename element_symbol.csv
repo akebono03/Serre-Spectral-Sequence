@@ -1,5 +1,7 @@
 F,E,B,coe,element,symbol
 
 CP^{\infty},*,"K(Z,3)",3,a_{3},u
-CP^{\infty},*,"K(Z,3)",3,a_{7},"{P^{1} u}"
-CP^{\infty},*,"K(Z,3)",3,b_{8},"{\Delta P^{1} u}"
+CP^{\infty},*,"K(Z,3)",3,a_{7},"{\wp^{1} u}"
+CP^{\infty},*,"K(Z,3)",3,a_{19},"{\wp^{3} \wp^{1} u}"
+CP^{\infty},*,"K(Z,3)",3,b_{8},"{\beta \wp^{1} u}"
+CP^{\infty},*,"K(Z,3)",3,b_{20},"{\beta \wp^{3} \wp^{1} u}"
