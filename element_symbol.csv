@@ -14,3 +14,15 @@ CP^{\infty},*,"K(Z,3)",3,b_{20},"{\beta \wp^{3} \wp^{1} u}"
 "K(Z,3)",*,"K(Z,4)",3,a_{9},"{\beta \wp^{1} b_{4}}"
 "K(Z,3)",*,"K(Z,4)",3,b_{20},"{\wp^{3} \wp^{1} b_{4}}"
 
+
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,u_{9},"{\beta v_{8}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,v_{12},"{\wp^{1} v_{8}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,u_{13},"{\beta \wp^{1} v_{8}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,v_{20},"{\wp^{3} \wp^{1} v_{8}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,a_{9},"{\wp^{1} a_{5}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,b_{10},"{\beta \wp^{1} a_{5}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,a_{13},"{\wp^{2} a_{5}}"
+"S^{5}\langle5\rangle",S^{5},"K(Z,5)",3,b_{14},"{\beta \wp^{2} a_{5}}"
+
+
+
