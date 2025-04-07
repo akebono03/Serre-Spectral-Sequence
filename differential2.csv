@@ -52,6 +52,8 @@ CP^{\infty},*,"K(Z,3)",3,19,1,v^{9},a_{19},1,1
 "\Omega S^{5}\langle5\rangle",*,"S^{5}\langle5\rangle",3,9,1,v_{8},a_{9},1,1
 "\Omega S^{5}\langle5\rangle",*,"S^{5}\langle5\rangle",3,12,1,u_{11},b_{12},1,1
 "\Omega S^{5}\langle5\rangle",*,"S^{5}\langle5\rangle",3,13,1,v_{12},a_{13},1,1
+"\Omega S^{5}\langle5\rangle",*,"S^{5}\langle5\rangle",3,20,1,u_{19},b_{20},1,1
+"\Omega S^{5}\langle5\rangle",*,"S^{5}\langle5\rangle",3,21,1,v_{20},a_{21},1,1
 
 "\Omega^{2} S^{5}\langle5\rangle",*,"\Omega S^{5}\langle5\rangle",3,7,1,v_{6},a_{7},1,1
 "\Omega^{2} S^{5}\langle5\rangle",*,"\Omega S^{5}\langle5\rangle",3,8,1,u_{7},b_{8},1,1
