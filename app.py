@@ -123,7 +123,7 @@ conn.close()
 
 print("CSVデータをSQLiteにインポートしました。")
 
-max_deg = 20
+max_deg = 22
 
 def sort_key(s):
   # アルファベット部分と数字部分を抽出
@@ -777,7 +777,8 @@ def index():
     , tensor_product_grid=tensor_product_grid \
     , E_gens=E_gens \
     , reference=reference \
-    , r=r)
+    , r=r \
+    , max_deg=max_deg)
 
 if __name__ == "__main__":
   app.run(host="0.0.0.0", port=5000, debug=False)
