@@ -163,8 +163,10 @@ S^{3}\langle3\rangle,1,5,19,1,x,2,9
 
 "\Omega S^{5}\langle5\rangle",3,1,7,1,y,2,3
 "\Omega S^{5}\langle5\rangle",3,1,11,1,y,2,3
+"\Omega S^{5}\langle5\rangle",3,1,19,1,y,2,3
 "\Omega S^{5}\langle5\rangle",3,0,8,1,x,10,3
 "\Omega S^{5}\langle5\rangle",3,0,12,1,x,10,3
+"\Omega S^{5}\langle5\rangle",3,0,20,1,x,10,3
 
 "\Omega^{2} S^{5}\langle5\rangle",3,0,6,1,y,10,3
 "\Omega^{2} S^{5}\langle5\rangle",3,0,10,1,y,10,3
