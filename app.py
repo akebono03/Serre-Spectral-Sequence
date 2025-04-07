@@ -719,16 +719,17 @@ def index():
   selected_coefficient = "1"
   cohomologies = None
   symbol_dic = {}
-  max_deg=20
+
+  r=request.form.get("r", "2")
+  # max_deg=20
+  max_deg=request.form.get("max_deg","10")
+  max_deg=int(max_deg)
 
   F,E,B="SU(3)","SU(4)","S^{7}" # 初期値
   cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), {}, max_deg)
   B_gens = get_cohomology_structure(B,selected_coefficient,"B",{},max_deg)
   F_gens = get_cohomology_structure(F,selected_coefficient,"F",{},max_deg)
 
-  r=request.form.get("r", "2")
-  max_deg=request.form.get("max_deg")
-  max_deg=int(max_deg)
   tensor_product_grid = [[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)]
 
   r=int(r)
