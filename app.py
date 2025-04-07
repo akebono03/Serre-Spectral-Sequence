@@ -123,7 +123,7 @@ conn.close()
 
 print("CSVデータをSQLiteにインポートしました。")
 
-max_deg = 22
+# max_deg = 22
 
 def sort_key(s):
   # アルファベット部分と数字部分を抽出
@@ -145,7 +145,7 @@ def smart_split(selected_fibration):
   s=''.join(s)
   return s.split('.')
 
-def get_generator_list(space, coefficient, space_type, symbol_dic):
+def get_generator_list(space, coefficient, space_type, symbol_dic, max_deg):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -203,7 +203,7 @@ def get_generator_list(space, coefficient, space_type, symbol_dic):
   return gen_list, gen_deg, gen_order, gen_nil, is_except
 
 
-def get_cohomology_structure(space, coefficient, space_type, symbol_dic):
+def get_cohomology_structure(space, coefficient, space_type, symbol_dic, max_deg):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -219,7 +219,7 @@ def get_cohomology_structure(space, coefficient, space_type, symbol_dic):
   odd_generators=[]
   even_generators=[]
 
-  gen_list, gen_deg, _, gen_nil, is_except = get_generator_list(space, coefficient, space_type, symbol_dic)
+  gen_list, gen_deg, _, gen_nil, is_except = get_generator_list(space, coefficient, space_type, symbol_dic, max_deg)
 
   # 例外の場合
   if is_except:
@@ -297,7 +297,7 @@ def get_ideal(space, coefficient, space_type):
 
 
 # コホモロジー環の係数と環構造を取得する関数
-def get_cohomology_tex(space, coefficient, space_type, symbol_dic):
+def get_cohomology_tex(space, coefficient, space_type, symbol_dic, max_deg):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -319,7 +319,7 @@ def get_cohomology_tex(space, coefficient, space_type, symbol_dic):
   if space == '*':
     return coe_tex, coe_tex
 
-  gen_list, gen_deg, gen_order, _, is_except = get_generator_list(space, coefficient, space_type, symbol_dic)
+  gen_list, gen_deg, gen_order, _, is_except = get_generator_list(space, coefficient, space_type, symbol_dic, max_deg)
 
   # 例外の場合
   if is_except:
@@ -370,7 +370,7 @@ def get_fibrations():
   return fibrations
 
 # ファイブレーションに対応するコホモロジー環と E_2-term を取得
-def get_fibration_cohomology(fibration,coefficient,symbol_dic):
+def get_fibration_cohomology(fibration,coefficient,symbol_dic,max_deg):
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
   cursor = conn.cursor()
@@ -380,9 +380,9 @@ def get_fibration_cohomology(fibration,coefficient,symbol_dic):
   conn.close()
 
   if result:
-    f_coe, f_cohomology = get_cohomology_tex(result["F"],coefficient,"F",symbol_dic)
-    e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient,"E",symbol_dic)
-    b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient,"B",symbol_dic)
+    f_coe, f_cohomology = get_cohomology_tex(result["F"],coefficient,"F",symbol_dic,max_deg)
+    e_coe, e_cohomology = get_cohomology_tex(result["E"],coefficient,"E",symbol_dic,max_deg)
+    b_coe, b_cohomology = get_cohomology_tex(result["B"],coefficient,"B",symbol_dic,max_deg)
 
     for element,symbol in symbol_dic.items():
       f_cohomology = f_cohomology.replace(element, symbol)
@@ -439,44 +439,44 @@ def get_differential2(F,E,B,coe):
   return dif
 
 
-def get_deleted(F,E,B,coe):
-  conn = sqlite3.connect("cohomology.db", check_same_thread=False)
-  conn.row_factory = sqlite3.Row
-  cursor = conn.cursor()
-  cursor.execute("SELECT r,kill FROM fibration WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
-  result = cursor.fetchall()
-  conn.commit()
-  conn.close()
+# def get_deleted(F,E,B,coe,max_deg):
+#   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
+#   conn.row_factory = sqlite3.Row
+#   cursor = conn.cursor()
+#   cursor.execute("SELECT r,kill FROM fibration WHERE F=? AND E=? AND B=? AND coe=?", (F,E,B, coe))
+#   result = cursor.fetchall()
+#   conn.commit()
+#   conn.close()
 
-  dels = [set() for _ in range(max_deg+1)]
+#   dels = [set() for _ in range(max_deg+1)]
 
-  for row in result:
-    dels[row["r"]+1]=set(map(str_to_tuple,smart_split(row["kill"])))
-  for i in range(max_deg):
-    dels[i+1] |= dels[i]
+#   for row in result:
+#     dels[row["r"]+1]=set(map(str_to_tuple,smart_split(row["kill"])))
+#   for i in range(max_deg):
+#     dels[i+1] |= dels[i]
 
-  return dels
+#   return dels
 
-def get_target(B_gens, F_gens):
-  target_grid = [[set() for _ in range(max_deg+1)] for _ in range(max_deg+1)]
-  target_grid[0][0].add('1')
+# def get_target(B_gens, F_gens):
+#   target_grid = [[set() for _ in range(max_deg+1)] for _ in range(max_deg+1)]
+#   target_grid[0][0].add('1')
 
-  for p in range(max_deg+1):
-    for q in range(max_deg+1):
-      B_list = B_gens[p] if p < len(B_gens) else []
-      F_list = F_gens[q] if q < len(F_gens) else []
-      for b in B_list:
-        for f in F_list:
-          if b == "1" and f == "1":
-            continue  # すでに 1 を設定済み
-          elif b == "1":
-            target_grid[p][q].add(f"{f}")  # 1 ⊗ f = f
-          elif f == "1":
-            target_grid[p][q].add(f"{b}")  # b ⊗ 1 = b
-          else:
-            target_grid[p][q].add(f"{b} {f}")  # 一般形 b ⊗ f
+#   for p in range(max_deg+1):
+#     for q in range(max_deg+1):
+#       B_list = B_gens[p] if p < len(B_gens) else []
+#       F_list = F_gens[q] if q < len(F_gens) else []
+#       for b in B_list:
+#         for f in F_list:
+#           if b == "1" and f == "1":
+#             continue  # すでに 1 を設定済み
+#           elif b == "1":
+#             target_grid[p][q].add(f"{f}")  # 1 ⊗ f = f
+#           elif f == "1":
+#             target_grid[p][q].add(f"{b}")  # b ⊗ 1 = b
+#           else:
+#             target_grid[p][q].add(f"{b} {f}")  # 一般形 b ⊗ f
 
-  return target_grid
+#   return target_grid
 
 def extract_gen_and_exp(s):
   # 正規表現パターン：基本部分 (base) とオプションの上付き指数部分 (exponent)
@@ -559,7 +559,7 @@ def latex_sum(x,y):
       return x
 
 
-def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic):
+def get_Er_term(F,E,B, coe, r, B_gens, F_gens, symbol_dic, max_deg):
 # SQLiteデータベースに接続し、微分情報を取得
   conn = sqlite3.connect("cohomology.db", check_same_thread=False)
   conn.row_factory = sqlite3.Row
@@ -719,13 +719,16 @@ def index():
   selected_coefficient = "1"
   cohomologies = None
   symbol_dic = {}
+  max_deg=20
 
   F,E,B="SU(3)","SU(4)","S^{7}" # 初期値
-  cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), {})
-  B_gens = get_cohomology_structure(B,selected_coefficient,"B",{})
-  F_gens = get_cohomology_structure(F,selected_coefficient,"F",{})
+  cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), {}, max_deg)
+  B_gens = get_cohomology_structure(B,selected_coefficient,"B",{},max_deg)
+  F_gens = get_cohomology_structure(F,selected_coefficient,"F",{},max_deg)
 
   r=request.form.get("r", "2")
+  max_deg=request.form.get("max_deg")
+  max_deg=int(max_deg)
   tensor_product_grid = [[[] for _ in range(max_deg+1)] for _ in range(max_deg+1)]
 
   r=int(r)
@@ -755,19 +758,19 @@ def index():
       # print(f"symbol_dic = {symbol_dic}")
 
 
-      cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), symbol_dic)
-      B_gens = get_cohomology_structure(B,selected_coefficient,"B",symbol_dic)
-      F_gens = get_cohomology_structure(F,selected_coefficient,"F",symbol_dic)
+      cohomologies = get_fibration_cohomology((F, E, B), int(selected_coefficient), symbol_dic, max_deg)
+      B_gens = get_cohomology_structure(B,selected_coefficient,"B",symbol_dic,max_deg)
+      F_gens = get_cohomology_structure(F,selected_coefficient,"F",symbol_dic,max_deg)
 
       # print(f"cohomologies = {cohomologies}")
 
 
-      tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens,symbol_dic)
+      tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens,symbol_dic,max_deg)
 
   # print(f"B_gens = {B_gens}")
   # print(cohomologies)
 
-  E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic)
+  E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic,max_deg)
   reference = get_reference(F,E,B,selected_coefficient)
 
   return render_template("index.html", fibrations=fibrations \
