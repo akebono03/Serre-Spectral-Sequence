@@ -16,7 +16,7 @@
     }
     .y-coordinates {
       display: grid;
-      grid-template-rows: repeat(20, 20px);
+      grid-template-rows: repeat({{ max_deg }}, 20px);
       gap: 1px;
       margin-right: 10px;
       text-align: right;
@@ -26,8 +26,8 @@
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(20, 60px);
-      grid-template-rows: repeat(20, 20px);
+      grid-template-columns: repeat({{ max_deg }}, 60px);
+      grid-template-rows: repeat({{ max_deg }}, 20px);
       gap: 1px;
       border: 1px solid #999;
       background-color: white;
@@ -45,7 +45,7 @@
     }
     .x-coordinates {
       display: grid;
-      grid-template-columns: repeat(20, 60px);
+      grid-template-columns: repeat({{ max_deg }}, 60px);
       gap: 1px;
       margin-top: 10px;
       text-align: center;
@@ -114,7 +114,7 @@
     <div class="y-coordinates">
       <script>
         const yCoordsContainer = document.currentScript.parentNode;
-        for (let y = 19; y >= 0; y--) {
+        for (let y = {{ max_deg-1 }}; y >= 0; y--) {
           const yLabel = document.createElement("div");
           yLabel.textContent = y;
           yCoordsContainer.appendChild(yLabel);
@@ -127,7 +127,7 @@
       <div class="grid">
         <script>
           const grid = document.currentScript.parentNode;
-          const rows = 20, cols = 20;
+          const rows = {{ max_deg }}, cols = {{ max_deg }};
           let tensorProductGrid = {{ tensor_product_grid | tojson | safe }};
           
           for (let row = rows - 1; row >= 0; row--) {
@@ -156,7 +156,7 @@
       <div class="x-coordinates">
         <script>
           const xCoordsContainer = document.currentScript.parentNode;
-          for (let x = 0; x < 20; x++) {
+          for (let x = 0; x < {{ max_deg }}; x++) {
             const xLabel = document.createElement("div");
             xLabel.textContent = x;
             xCoordsContainer.appendChild(xLabel);
@@ -165,11 +165,11 @@
       </div>
 
       <!-- Eのコホモロジーの元を横に並べて表示 -->
-      <div class="e-cohomology" style="display: grid; grid-template-columns: repeat(20, 60px); gap: 1px; text-align: center; font-size: 10px; font-weight: bold;">
+      <div class="e-cohomology" style="display: grid; grid-template-columns: repeat({{ max_deg }}, 60px); gap: 1px; text-align: center; font-size: 10px; font-weight: bold;">
         <script>
           const eCohomologyContainer = document.currentScript.parentNode;
           let Egens = {{ E_gens | tojson | safe }};
-          for (let x = 0; x < 20; x++) {
+          for (let x = 0; x < {{ max_deg }}; x++) {
             const eLabel = document.createElement("div");
             eLabel.style.padding = "5px";
             if (Egens[x].length > 0) {
@@ -209,7 +209,7 @@
           // グリッド関連
           const cellWidth = 60, cellHeight = 20;
           const gap = 1, border = 2;
-          const rowsTotal = 20;
+          const rowsTotal = {{ max_deg }};
 
           // テンプレート変数 r を JavaScript 側で数値として取得
           const rValue = parseInt("{{ r }}", 10);          
