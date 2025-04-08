@@ -223,7 +223,14 @@ def get_cohomology_structure(space, coefficient, space_type, symbol_dic, max_deg
 
   # 例外の場合
   if is_except:
+    # print(f"symbol_dic = {symbol_dic}")
+    # print(f"gen_list = {gen_list}")
     for gen in gen_list:
+      for element,symbol in symbol_dic.items():
+        gen2 = gen.replace(element, symbol)
+        gen_deg[gen2] = gen_deg[gen]
+        gen = gen2
+      # print(f"gen2 = {gen2}")
       result_list[gen_deg[gen]].append(gen)
     result_list[0].append('1')
     return result_list
@@ -768,11 +775,13 @@ def index():
 
       tensor_product_grid = get_Er_term(F,E,B,selected_coefficient,r,B_gens,F_gens,symbol_dic,max_deg)
 
-  # print(f"B_gens = {B_gens}")
+  # print(f"symbol_dic = {symbol_dic}")
   # print(cohomologies)
 
   E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic,max_deg)
   reference = get_reference(F,E,B,selected_coefficient)
+
+  print(f"E_gens = {E_gens}")
 
   return render_template("index.html", fibrations=fibrations \
     , selected_fibration=selected_fibration \
