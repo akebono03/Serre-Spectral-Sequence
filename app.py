@@ -781,7 +781,7 @@ def index():
   E_gens = get_cohomology_structure(E, selected_coefficient, "E",symbol_dic,max_deg)
   reference = get_reference(F,E,B,selected_coefficient)
 
-  print(f"E_gens = {E_gens}")
+  # print(f"E_gens = {E_gens}")
 
   return render_template("index.html", fibrations=fibrations \
     , selected_fibration=selected_fibration \
